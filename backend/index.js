@@ -7,6 +7,7 @@ require("dotenv").config();
 const passport = require("./config/passport");
 const authRoutes = require("./routes/authRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
+const githubRoutes = require("./routes/githubRoutes");
 const { loadSchedules, scheduleJob } = require("./services/schedulerService");
 
 const app = express();
@@ -55,6 +56,7 @@ app.use("/auth", authRoutes);
 
 // API Routes
 app.use("/api/schedule", scheduleRoutes);
+app.use("/api/github", githubRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

@@ -1,26 +1,37 @@
-const supabase = require('../config/supabase');
+const supabase = require("../config/supabase");
 
 // GET all schedules
 const getAllSchedules = async (req, res) => {
   try {
+    // Get schedules for the authenticated user only
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User not authenticated",
+      });
+    }
+
     const { data, error } = await supabase
-      .from('schedules')
-      .select('*')
-      .order('push_time', { ascending: true });
+      .from("schedules")
+      .select("*")
+      .eq("user_id", userId)
+      .order("push_time", { ascending: true });
 
     if (error) throw error;
 
     res.json({
       success: true,
       data: data || [],
-      count: data ? data.length : 0
+      count: data ? data.length : 0,
     });
   } catch (error) {
-    console.error('Error fetching schedules:', error);
+    console.error("Error fetching schedules:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch schedules',
-      error: error.message
+      message: "Failed to fetch schedules",
+      error: error.message,
     });
   }
 };
@@ -28,12 +39,21 @@ const getAllSchedules = async (req, res) => {
 // GET single schedule by ID
 const getScheduleById = async (req, res) => {
   const { id } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: "User not authenticated",
+    });
+  }
 
   try {
     const { data, error } = await supabase
-      .from('schedules')
-      .select('*')
-      .eq('id', id)
+      .from("schedules")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", userId)
       .single();
 
     if (error) throw error;
@@ -41,47 +61,81 @@ const getScheduleById = async (req, res) => {
     if (!data) {
       return res.status(404).json({
         success: false,
-        message: 'Schedule not found'
+        message: "Schedule not found",
       });
     }
 
     res.json({
       success: true,
-      data
+      data,
     });
   } catch (error) {
-    console.error('Error fetching schedule:', error);
+    console.error("Error fetching schedule:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch schedule',
-      error: error.message
+      message: "Failed to fetch schedule",
+      error: error.message,
     });
   }
 };
 
 // POST create new schedule
 const createSchedule = async (req, res) => {
-  const { repo_path, branch, push_time } = req.body;
+  const {
+    repo_path,
+    branch,
+    push_time,
+    github_repo_url,
+    repo_owner,
+    repo_name,
+  } = req.body;
+  const userId = req.user?.id;
 
   // Validation
-  if (!repo_path || !branch || !push_time) {
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: "User not authenticated",
+    });
+  }
+
+  if (!branch || !push_time) {
     return res.status(400).json({
       success: false,
-      message: 'Missing required fields: repo_path, branch, push_time'
+      message: "Missing required fields: branch, push_time",
+    });
+  }
+
+  // Require either repo_path (legacy) or github repo details
+  if (!repo_path && (!github_repo_url || !repo_owner || !repo_name)) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Either repo_path or github_repo_url/repo_owner/repo_name is required",
     });
   }
 
   try {
+    const scheduleData = {
+      user_id: userId,
+      branch,
+      push_time,
+      status: "scheduled",
+    };
+
+    // Add repo details (prefer GitHub repo info)
+    if (github_repo_url && repo_owner && repo_name) {
+      scheduleData.github_repo_url = github_repo_url;
+      scheduleData.repo_owner = repo_owner;
+      scheduleData.repo_name = repo_name;
+      scheduleData.repo_path = null; // Clear legacy path
+    } else if (repo_path) {
+      scheduleData.repo_path = repo_path;
+    }
+
     const { data, error } = await supabase
-      .from('schedules')
-      .insert([
-        {
-          repo_path,
-          branch,
-          push_time,
-          status: 'scheduled'
-        }
-      ])
+      .from("schedules")
+      .insert([scheduleData])
       .select()
       .single();
 
@@ -89,15 +143,15 @@ const createSchedule = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Schedule created successfully',
-      data
+      message: "Schedule created successfully",
+      data,
     });
   } catch (error) {
-    console.error('Error creating schedule:', error);
+    console.error("Error creating schedule:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create schedule',
-      error: error.message
+      message: "Failed to create schedule",
+      error: error.message,
     });
   }
 };
@@ -105,22 +159,42 @@ const createSchedule = async (req, res) => {
 // PUT update schedule
 const updateSchedule = async (req, res) => {
   const { id } = req.params;
-  const { repo_path, branch, push_time, status } = req.body;
+  const {
+    repo_path,
+    branch,
+    push_time,
+    status,
+    github_repo_url,
+    repo_owner,
+    repo_name,
+  } = req.body;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: "User not authenticated",
+    });
+  }
 
   try {
     const updateData = {
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
 
     if (repo_path) updateData.repo_path = repo_path;
     if (branch) updateData.branch = branch;
     if (push_time) updateData.push_time = push_time;
     if (status) updateData.status = status;
+    if (github_repo_url) updateData.github_repo_url = github_repo_url;
+    if (repo_owner) updateData.repo_owner = repo_owner;
+    if (repo_name) updateData.repo_name = repo_name;
 
     const { data, error } = await supabase
-      .from('schedules')
+      .from("schedules")
       .update(updateData)
-      .eq('id', id)
+      .eq("id", id)
+      .eq("user_id", userId)
       .select()
       .single();
 
@@ -129,21 +203,21 @@ const updateSchedule = async (req, res) => {
     if (!data) {
       return res.status(404).json({
         success: false,
-        message: 'Schedule not found'
+        message: "Schedule not found",
       });
     }
 
     res.json({
       success: true,
-      message: 'Schedule updated successfully',
-      data
+      message: "Schedule updated successfully",
+      data,
     });
   } catch (error) {
-    console.error('Error updating schedule:', error);
+    console.error("Error updating schedule:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update schedule',
-      error: error.message
+      message: "Failed to update schedule",
+      error: error.message,
     });
   }
 };
@@ -151,25 +225,34 @@ const updateSchedule = async (req, res) => {
 // DELETE schedule
 const deleteSchedule = async (req, res) => {
   const { id } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: "User not authenticated",
+    });
+  }
 
   try {
     const { error } = await supabase
-      .from('schedules')
+      .from("schedules")
       .delete()
-      .eq('id', id);
+      .eq("id", id)
+      .eq("user_id", userId);
 
     if (error) throw error;
 
     res.json({
       success: true,
-      message: 'Schedule deleted successfully'
+      message: "Schedule deleted successfully",
     });
   } catch (error) {
-    console.error('Error deleting schedule:', error);
+    console.error("Error deleting schedule:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete schedule',
-      error: error.message
+      message: "Failed to delete schedule",
+      error: error.message,
     });
   }
 };
@@ -179,5 +262,5 @@ module.exports = {
   getScheduleById,
   createSchedule,
   updateSchedule,
-  deleteSchedule
+  deleteSchedule,
 };
