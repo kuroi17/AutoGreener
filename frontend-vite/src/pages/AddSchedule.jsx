@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import AddRepoForm from "../components/AddRepoForm";
 import Notification from "../components/Notification";
+import { scheduleAPI } from "../services/api";
 
 const AddSchedule = () => {
   const navigate = useNavigate();
@@ -11,36 +12,42 @@ const AddSchedule = () => {
     type: "",
     message: "",
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (formData) => {
-    // Placeholder: This will be replaced with actual API call to backend
-    console.log("Schedule data to be sent to backend:", formData);
-
-    // Simulating API call
+  const handleSubmit = async (formData) => {
     try {
-      // Here you would normally send data to backend:
-      // const response = await fetch('http://localhost:5000/schedule', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(formData)
-      // });
+      setIsSubmitting(true);
 
-      setNotification({
-        show: true,
-        type: "success",
-        message: `Push scheduled successfully for ${formData.branch} at ${formData.pushTime}`,
-      });
+      // Transform frontend data format to backend format
+      const scheduleData = {
+        repo_path: formData.repoPath,
+        branch: formData.branch,
+        push_time: formData.pushTime,
+      };
 
-      // Redirect to dashboard after 2 seconds
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
+      const response = await scheduleAPI.create(scheduleData);
+
+      if (response.success) {
+        setNotification({
+          show: true,
+          type: "success",
+          message: `Push scheduled successfully for ${formData.branch} at ${formData.pushTime}`,
+        });
+
+        // Redirect to dashboard after 2 seconds
+        setTimeout(() => {
+          navigate("/");
+        }, 2000);
+      }
     } catch (error) {
+      console.error("Error creating schedule:", error);
       setNotification({
         show: true,
         type: "error",
         message: "Failed to schedule push. Please try again.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

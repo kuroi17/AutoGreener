@@ -3,44 +3,45 @@ import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import RepoCard from "../components/RepoCard";
 import Notification from "../components/Notification";
+import { scheduleAPI } from "../services/api";
 
 const Dashboard = () => {
   const [schedules, setSchedules] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState({
     show: false,
     type: "",
     message: "",
   });
 
-  // Placeholder: This will be replaced with actual API calls
+  // Fetch schedules from backend API
   useEffect(() => {
-    // Simulating API call to fetch schedules
-    const mockSchedules = [
-      {
-        id: 1,
-        repoPath: "C:/Users/Dev/Projects/my-app",
-        branch: "main",
-        pushTime: "2026-03-09T10:00:00",
-        status: "scheduled",
-      },
-      {
-        id: 2,
-        repoPath: "C:/Users/Dev/Projects/portfolio",
-        branch: "feature/redesign",
-        pushTime: "2026-03-10T14:30:00",
-        status: "scheduled",
-      },
-      {
-        id: 3,
-        repoPath: "C:/Users/Dev/Projects/backend-api",
-        branch: "main",
-        pushTime: "2026-03-08T09:00:00",
-        status: "completed",
-      },
-    ];
-
-    setSchedules(mockSchedules);
+    fetchSchedules();
   }, []);
+
+  const fetchSchedules = async () => {
+    try {
+      setLoading(true);
+      const response = await scheduleAPI.getAll();
+
+      if (response.success) {
+        // Map backend data to frontend format
+        const mappedSchedules = response.data.map((schedule) => ({
+          id: schedule.id,
+          repoPath: schedule.repo_path,
+          branch: schedule.branch,
+          pushTime: schedule.push_time,
+          status: schedule.status,
+        }));
+        setSchedules(mappedSchedules);
+      }
+    } catch (error) {
+      console.error("Error fetching schedules:", error);
+      showNotification("error", "Failed to load schedules");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const showNotification = (type, message) => {
     setNotification({ show: true, type, message });
@@ -49,10 +50,18 @@ const Dashboard = () => {
     }, 5000);
   };
 
-  const handleDelete = (id) => {
-    // Placeholder: Will connect to backend API
-    setSchedules(schedules.filter((schedule) => schedule.id !== id));
-    showNotification("success", "Schedule deleted successfully");
+  const handleDelete = async (id) => {
+    try {
+      const response = await scheduleAPI.delete(id);
+
+      if (response.success) {
+        setSchedules(schedules.filter((schedule) => schedule.id !== id));
+        showNotification("success", "Schedule deleted successfully");
+      }
+    } catch (error) {
+      console.error("Error deleting schedule:", error);
+      showNotification("error", "Failed to delete schedule");
+    }
   };
 
   const getStatsCount = (status) => {
@@ -172,7 +181,14 @@ const Dashboard = () => {
         </div>
 
         {/* Schedule Cards Grid */}
-        {schedules.length > 0 ? (
+        {loading ? (
+          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+            <div className="flex justify-center items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+            <p className="text-gray-600 mt-4">Loading schedules...</p>
+          </div>
+        ) : schedules.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {schedules.map((schedule) => (
               <RepoCard
