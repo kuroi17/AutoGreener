@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const WorkflowService = require("../services/workflowService");
 
 // GET all schedules
 const getAllSchedules = async (req, res) => {
@@ -141,10 +142,54 @@ const createSchedule = async (req, res) => {
 
     if (error) throw error;
 
+    // Deploy workflow to GitHub if repo details are provided
+    let workflowDeployed = false;
+    let workflowResult = null;
+
+    if (github_repo_url && repo_owner && repo_name && req.user.access_token) {
+      try {
+        workflowResult = await WorkflowService.deployWorkflow(
+          req.user.access_token,
+          data,
+        );
+
+        // Update schedule with workflow deployment status
+        await supabase
+          .from("schedules")
+          .update({
+            status: "active",
+            workflow_deployed: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", data.id);
+
+        workflowDeployed = true;
+        data.workflow_deployed = true;
+        data.status = "active";
+      } catch (workflowError) {
+        console.error("Error deploying workflow:", workflowError);
+        // Schedule created but workflow failed - don't fail the entire request
+        workflowResult = {
+          error: workflowError.message,
+          success: false,
+        };
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: "Schedule created successfully",
       data,
+      workflow: workflowDeployed
+        ? {
+            deployed: true,
+            ...workflowResult,
+          }
+        : {
+            deployed: false,
+            message:
+              workflowResult?.error || "GitHub repo details not provided",
+          },
     });
   } catch (error) {
     console.error("Error creating schedule:", error);

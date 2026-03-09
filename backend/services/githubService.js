@@ -119,6 +119,143 @@ class GitHubService {
       throw new Error("Failed to fetch repository branches");
     }
   }
+
+  /**
+   * Get file content from repository
+   * @param {string} owner - Repository owner username
+   * @param {string} repo - Repository name
+   * @param {string} path - File path in repository
+   * @param {string} branch - Branch name (optional, defaults to default branch)
+   * @returns {Promise<Object>} File metadata and content
+   */
+  async getFileContent(owner, repo, path, branch = null) {
+    try {
+      const params = branch ? { ref: branch } : {};
+      const response = await this.client.get(
+        `/repos/${owner}/${repo}/contents/${path}`,
+        { params },
+      );
+
+      return {
+        content: Buffer.from(response.data.content, "base64").toString("utf-8"),
+        sha: response.data.sha,
+        path: response.data.path,
+        name: response.data.name,
+      };
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return null; // File doesn't exist
+      }
+      console.error(
+        "Error fetching file content:",
+        error.response?.data || error.message,
+      );
+      throw new Error("Failed to fetch file content");
+    }
+  }
+
+  /**
+   * Create or update a file in repository
+   * @param {string} owner - Repository owner username
+   * @param {string} repo - Repository name
+   * @param {string} path - File path in repository
+   * @param {string} content - File content
+   * @param {string} message - Commit message
+   * @param {string} branch - Target branch
+   * @param {string} sha - File SHA (required for updates, null for new files)
+   * @returns {Promise<Object>} Commit information
+   */
+  async createOrUpdateFile(
+    owner,
+    repo,
+    path,
+    content,
+    message,
+    branch,
+    sha = null,
+  ) {
+    try {
+      const payload = {
+        message,
+        content: Buffer.from(content).toString("base64"),
+        branch,
+      };
+
+      // Include SHA if updating existing file
+      if (sha) {
+        payload.sha = sha;
+      }
+
+      const response = await this.client.put(
+        `/repos/${owner}/${repo}/contents/${path}`,
+        payload,
+      );
+
+      return {
+        success: true,
+        commit: {
+          sha: response.data.commit.sha,
+          message: response.data.commit.message,
+          url: response.data.commit.html_url,
+        },
+        content: {
+          sha: response.data.content.sha,
+          path: response.data.content.path,
+          url: response.data.content.html_url,
+        },
+      };
+    } catch (error) {
+      console.error(
+        "Error creating/updating file:",
+        error.response?.data || error.message,
+      );
+      throw new Error(
+        `Failed to ${sha ? "update" : "create"} file: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Delete a file from repository
+   * @param {string} owner - Repository owner username
+   * @param {string} repo - Repository name
+   * @param {string} path - File path in repository
+   * @param {string} message - Commit message
+   * @param {string} branch - Target branch
+   * @param {string} sha - File SHA (required)
+   * @returns {Promise<Object>} Commit information
+   */
+  async deleteFile(owner, repo, path, message, branch, sha) {
+    try {
+      const response = await this.client.delete(
+        `/repos/${owner}/${repo}/contents/${path}`,
+        {
+          data: {
+            message,
+            branch,
+            sha,
+          },
+        },
+      );
+
+      return {
+        success: true,
+        commit: {
+          sha: response.data.commit.sha,
+          message: response.data.commit.message,
+          url: response.data.commit.html_url,
+        },
+      };
+    } catch (error) {
+      console.error(
+        "Error deleting file:",
+        error.response?.data || error.message,
+      );
+      throw new Error(
+        `Failed to delete file: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
 }
 
 module.exports = GitHubService;
