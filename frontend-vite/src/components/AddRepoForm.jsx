@@ -22,6 +22,31 @@ const AddRepoForm = ({ onSubmit }) => {
     }
   };
 
+  const handleBrowseFolder = async () => {
+    try {
+      // Check if the browser supports the File System Access API
+      if ("showDirectoryPicker" in window) {
+        const directoryHandle = await window.showDirectoryPicker();
+        // Get the full path (note: web API doesn't provide full path for security)
+        // We'll use the name for now
+        setFormData((prev) => ({
+          ...prev,
+          repoPath: directoryHandle.name,
+        }));
+      } else {
+        // Fallback: Alert user to manually enter path
+        alert(
+          "Your browser does not support folder selection. Please enter the path manually.",
+        );
+      }
+    } catch (error) {
+      // User cancelled the picker or an error occurred
+      if (error.name !== "AbortError") {
+        console.error("Error selecting folder:", error);
+      }
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -99,17 +124,39 @@ const AddRepoForm = ({ onSubmit }) => {
         >
           Repository Path
         </label>
-        <input
-          type="text"
-          id="repoPath"
-          name="repoPath"
-          value={formData.repoPath}
-          onChange={handleChange}
-          placeholder="C:\\Users\\YourName\\Projects\\my-repo"
-          className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-            errors.repoPath ? "border-red-500" : "border-gray-300"
-          }`}
-        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            id="repoPath"
+            name="repoPath"
+            value={formData.repoPath}
+            onChange={handleChange}
+            placeholder="C:\\Users\\YourName\\Projects\\my-repo"
+            className={`flex-1 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+              errors.repoPath ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          <button
+            type="button"
+            onClick={handleBrowseFolder}
+            className="px-6 py-3 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg transition-colors duration-200 font-medium text-gray-700 flex items-center gap-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+            </svg>
+            Browse
+          </button>
+        </div>
         {errors.repoPath && (
           <p className="mt-2 text-sm text-red-600 flex items-center">
             <svg
@@ -213,17 +260,24 @@ const AddRepoForm = ({ onSubmit }) => {
       </div>
 
       {/* Submit Button */}
-      <div className="flex justify-end space-x-4">
-        <button
-          type="button"
-          className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors duration-200 font-medium"
-        >
-          Cancel
-        </button>
+      <div className="flex justify-end">
         <button
           type="submit"
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg hover:from-blue-700 hover:to-indigo-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+          className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg hover:from-blue-700 hover:to-indigo-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl flex items-center gap-2"
         >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
           Schedule Push
         </button>
       </div>
