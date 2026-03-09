@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
+  const location = useLocation();
 
   return (
     <nav className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg">
@@ -27,18 +28,22 @@ const Navbar = () => {
             <h1 className="text-2xl font-bold">PushPilot</h1>
           </Link>
           <div className="flex items-center space-x-6">
-            <Link
-              to="/"
-              className="hover:text-blue-200 transition-colors duration-200"
-            >
-              Dashboard
-            </Link>
-            <Link
-              to="/add"
-              className="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors duration-200 font-medium"
-            >
-              + Schedule Push
-            </Link>
+            {location.pathname !== "/" && (
+              <Link
+                to="/"
+                className="hover:text-blue-200 transition-colors duration-200"
+              >
+                Dashboard
+              </Link>
+            )}
+            {location.pathname !== "/add" && (
+              <Link
+                to="/add"
+                className="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors duration-200 font-medium"
+              >
+                + Schedule Push
+              </Link>
+            )}
 
             {/* User Dropdown */}
             {user && (

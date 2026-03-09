@@ -4,10 +4,11 @@ import { Link, useLocation } from "react-router-dom";
 const Header = ({ title, subtitle }) => {
   const location = useLocation();
   const isDashboard = location.pathname === "/";
+  const isAddSchedule = location.pathname === "/add";
 
   return (
     <div className="mb-8">
-      {!isDashboard && (
+      {!isDashboard && !isAddSchedule && (
         <div className="flex items-center mb-4">
           <Link
             to="/"

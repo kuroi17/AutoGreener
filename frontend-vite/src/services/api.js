@@ -4,7 +4,9 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const scheduleAPI = {
   // Get all schedules
   getAll: async () => {
-    const response = await fetch(`${API_URL}/api/schedule`);
+    const response = await fetch(`${API_URL}/api/schedule`, {
+      credentials: "include",
+    });
     if (!response.ok) {
       throw new Error("Failed to fetch schedules");
     }
@@ -13,7 +15,9 @@ const scheduleAPI = {
 
   // Get single schedule by ID
   getById: async (id) => {
-    const response = await fetch(`${API_URL}/api/schedule/${id}`);
+    const response = await fetch(`${API_URL}/api/schedule/${id}`, {
+      credentials: "include",
+    });
     if (!response.ok) {
       throw new Error("Failed to fetch schedule");
     }
@@ -27,6 +31,7 @@ const scheduleAPI = {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       body: JSON.stringify(scheduleData),
     });
     if (!response.ok) {
@@ -42,6 +47,7 @@ const scheduleAPI = {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       body: JSON.stringify(scheduleData),
     });
     if (!response.ok) {
@@ -54,6 +60,7 @@ const scheduleAPI = {
   delete: async (id) => {
     const response = await fetch(`${API_URL}/api/schedule/${id}`, {
       method: "DELETE",
+      credentials: "include",
     });
     if (!response.ok) {
       throw new Error("Failed to delete schedule");
