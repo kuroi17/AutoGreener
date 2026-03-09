@@ -57,7 +57,7 @@ const Navbar = () => {
                       user.avatar_url ||
                       `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
                     }
-                    alt={user.username}
+                    alt={user.username} 
                     className="w-8 h-8 rounded-full border-2 border-white"
                   />
                   <span className="font-medium">{user.username}</span>

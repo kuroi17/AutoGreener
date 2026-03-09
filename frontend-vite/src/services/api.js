@@ -56,6 +56,18 @@ const scheduleAPI = {
     return response.json();
   },
 
+  // Toggle schedule status (active <-> paused)
+  toggleStatus: async (id) => {
+    const response = await fetch(`${API_URL}/api/schedule/${id}/toggle`, {
+      method: "PUT",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Failed to toggle schedule status");
+    }
+    return response.json();
+  },
+
   // Delete schedule
   delete: async (id) => {
     const response = await fetch(`${API_URL}/api/schedule/${id}`, {
