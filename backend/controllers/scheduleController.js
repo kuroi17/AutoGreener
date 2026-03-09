@@ -212,6 +212,7 @@ const updateSchedule = async (req, res) => {
     github_repo_url,
     repo_owner,
     repo_name,
+    commit_message,
   } = req.body;
   const userId = req.user?.id;
 
@@ -227,13 +228,15 @@ const updateSchedule = async (req, res) => {
       updated_at: new Date().toISOString(),
     };
 
-    if (repo_path) updateData.repo_path = repo_path;
+    if (repo_path !== undefined) updateData.repo_path = repo_path;
     if (branch) updateData.branch = branch;
     if (push_time) updateData.push_time = push_time;
     if (status) updateData.status = status;
     if (github_repo_url) updateData.github_repo_url = github_repo_url;
     if (repo_owner) updateData.repo_owner = repo_owner;
     if (repo_name) updateData.repo_name = repo_name;
+    if (commit_message !== undefined)
+      updateData.commit_message = commit_message;
 
     const { data, error } = await supabase
       .from("schedules")
@@ -252,16 +255,98 @@ const updateSchedule = async (req, res) => {
       });
     }
 
+    // If schedule has GitHub repo and workflow is deployed, redeploy with updated settings
+    let workflowRedeployed = false;
+    if (
+      data.workflow_deployed &&
+      data.repo_owner &&
+      data.repo_name &&
+      req.user.access_token &&
+      (branch || push_time || commit_message)
+    ) {
+      try {
+        await WorkflowService.deployWorkflow(req.user.access_token, data);
+        workflowRedeployed = true;
+      } catch (workflowError) {
+        console.error("Error redeploying workflow:", workflowError);
+        // Don't fail the update if workflow deployment fails
+      }
+    }
+
     res.json({
       success: true,
       message: "Schedule updated successfully",
       data,
+      workflow: workflowRedeployed
+        ? { redeployed: true }
+        : { redeployed: false },
     });
   } catch (error) {
     console.error("Error updating schedule:", error);
     res.status(500).json({
       success: false,
       message: "Failed to update schedule",
+      error: error.message,
+    });
+  }
+};
+
+// PUT toggle schedule status (active <-> paused)
+const toggleScheduleStatus = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: "User not authenticated",
+    });
+  }
+
+  try {
+    // Get current schedule
+    const { data: schedule, error: fetchError } = await supabase
+      .from("schedules")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: "Schedule not found",
+      });
+    }
+
+    // Toggle status
+    const newStatus = schedule.status === "active" ? "paused" : "active";
+
+    const { data, error } = await supabase
+      .from("schedules")
+      .update({
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: `Schedule ${newStatus === "active" ? "activated" : "paused"} successfully`,
+      data,
+    });
+  } catch (error) {
+    console.error("Error toggling schedule status:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to toggle schedule status",
       error: error.message,
     });
   }
@@ -307,5 +392,6 @@ module.exports = {
   getScheduleById,
   createSchedule,
   updateSchedule,
+  toggleScheduleStatus,
   deleteSchedule,
 };
