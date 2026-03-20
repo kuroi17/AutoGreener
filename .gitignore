@@ -58,3 +58,6 @@ __pycache__/
 .Python
 venv/
 env/
+# Markdown docs (keep only root README tracked)
+**/*.md
+!/README.md
