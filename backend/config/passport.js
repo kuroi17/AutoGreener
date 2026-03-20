@@ -29,7 +29,7 @@ passport.use(
     {
       clientID: process.env.GITHUB_CLIENT_ID,
       clientSecret: process.env.GITHUB_CLIENT_SECRET,
-      callbackURL: `${process.env.API_URL || "http://localhost:5000"}/auth/github/callback`,
+      callbackURL: `${process.env.API_URL || process.env.BACKEND_URL || "https://autogreener.onrender.com"}/auth/github/callback`,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {

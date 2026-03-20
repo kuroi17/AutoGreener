@@ -12,11 +12,13 @@ router.get(
 router.get(
   "/github/callback",
   passport.authenticate("github", {
-    failureRedirect: `${process.env.FRONTEND_URL}/login?error=auth_failed`,
+    failureRedirect: `${process.env.FRONTEND_URL || "https://autogreener.onrender.com"}/login?error=auth_failed`,
   }),
   (req, res) => {
     // Successful authentication, redirect to dashboard
-    res.redirect(`${process.env.FRONTEND_URL}/?login=success`);
+    res.redirect(
+      `${process.env.FRONTEND_URL || "https://autogreener.onrender.com"}/?login=success`,
+    );
   },
 );
 
