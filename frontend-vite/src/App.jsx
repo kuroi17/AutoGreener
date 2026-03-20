@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
-import AddSchedule from "./pages/AddSchedule";
 import Login from "./pages/Login";
 import "./index.css";
 
@@ -19,14 +18,6 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/add"
-              element={
-                <ProtectedRoute>
-                  <AddSchedule />
                 </ProtectedRoute>
               }
             />
