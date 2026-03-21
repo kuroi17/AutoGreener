@@ -21,7 +21,11 @@ class WorkflowService {
       const owner = schedule.repo_owner;
       const repo = schedule.repo_name;
       const path = workflowConfig.filePath;
-      const branch = schedule.branch;
+      const branch =
+        schedule.branch ||
+        schedule.source_branch ||
+        schedule.target_branch ||
+        null;
 
       // Check if workflow file already exists
       const existingFile = await githubService.getFileContent(
@@ -76,7 +80,11 @@ class WorkflowService {
       const owner = schedule.repo_owner;
       const repo = schedule.repo_name;
       const path = workflowConfig.filePath;
-      const branch = schedule.branch;
+      const branch =
+        schedule.branch ||
+        schedule.source_branch ||
+        schedule.target_branch ||
+        null;
 
       // Get existing file to retrieve SHA
       const existingFile = await githubService.getFileContent(
@@ -135,7 +143,11 @@ class WorkflowService {
       const owner = schedule.repo_owner;
       const repo = schedule.repo_name;
       const path = workflowConfig.filePath;
-      const branch = schedule.branch;
+      const branch =
+        schedule.branch ||
+        schedule.source_branch ||
+        schedule.target_branch ||
+        null;
 
       const existingFile = await githubService.getFileContent(
         owner,

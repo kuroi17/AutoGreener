@@ -41,6 +41,14 @@ router.post("/deploy/:scheduleId", isAuthenticated, async (req, res) => {
       });
     }
 
+    // Normalize branch field for compatibility with schema using
+    // `source_branch` / `target_branch` instead of `branch`.
+    schedule.branch =
+      schedule.branch ||
+      schedule.source_branch ||
+      schedule.target_branch ||
+      null;
+
     // Deploy workflow
     const result = await WorkflowService.deployWorkflow(accessToken, schedule);
 
@@ -98,6 +106,13 @@ router.delete("/remove/:scheduleId", isAuthenticated, async (req, res) => {
       });
     }
 
+    // Normalize branch for workflow operations
+    schedule.branch =
+      schedule.branch ||
+      schedule.source_branch ||
+      schedule.target_branch ||
+      null;
+
     // Remove workflow
     const result = await WorkflowService.removeWorkflow(accessToken, schedule);
 
@@ -153,6 +168,13 @@ router.get("/status/:scheduleId", isAuthenticated, async (req, res) => {
         error: "Schedule not found",
       });
     }
+
+    // Normalize branch for workflow checks
+    schedule.branch =
+      schedule.branch ||
+      schedule.source_branch ||
+      schedule.target_branch ||
+      null;
 
     // Check workflow existence
     const exists = await WorkflowService.workflowExists(accessToken, schedule);
