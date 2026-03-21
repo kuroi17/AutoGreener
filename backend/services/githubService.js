@@ -178,8 +178,11 @@ class GitHubService {
       const payload = {
         message,
         content: Buffer.from(content).toString("base64"),
-        branch,
       };
+
+      // Only include branch if explicitly provided to avoid sending null
+      // which can cause GitHub to return 404/Not Found.
+      if (branch) payload.branch = branch;
 
       // Include SHA if updating existing file
       if (sha) {
@@ -227,14 +230,13 @@ class GitHubService {
    */
   async deleteFile(owner, repo, path, message, branch, sha) {
     try {
+      const data = { message, sha };
+      if (branch) data.branch = branch;
+
       const response = await this.client.delete(
         `/repos/${owner}/${repo}/contents/${path}`,
         {
-          data: {
-            message,
-            branch,
-            sha,
-          },
+          data,
         },
       );
 
