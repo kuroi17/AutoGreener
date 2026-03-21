@@ -9,7 +9,8 @@ class GitHubService {
     this.client = axios.create({
       baseURL: "https://api.github.com",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        // GitHub OAuth tokens should be sent as `token` for widest compatibility.
+        Authorization: `token ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
         "User-Agent": "PushClock-App",
       },

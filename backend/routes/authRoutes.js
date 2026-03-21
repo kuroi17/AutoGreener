@@ -17,7 +17,8 @@ try {
 // GitHub OAuth login route
 router.get(
   "/github",
-  passport.authenticate("github", { scope: ["repo", "user"] }),
+  // `workflow` scope is required to create/update files in .github/workflows.
+  passport.authenticate("github", { scope: ["repo", "workflow", "user"] }),
 );
 
 // GitHub OAuth callback route
