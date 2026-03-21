@@ -610,7 +610,7 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-lime-50 to-white">
       <Navbar />
 
-      <div className="container mx-auto px-4 py-6 sm:px-6">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
         <section className="mb-6 rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -626,7 +626,7 @@ const Dashboard = () => {
                 extra noise.
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-3 sm:min-w-[320px]">
               <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-center">
                 <p className="text-xs font-medium text-emerald-700">Total</p>
                 <p className="text-xl font-bold text-emerald-950">
@@ -676,8 +676,8 @@ const Dashboard = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
-          <section className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[440px_minmax(0,1fr)]">
+          <section className="h-fit rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm lg:sticky lg:top-6">
             <h2 className="text-lg font-bold text-emerald-950">
               Create schedule
             </h2>
@@ -1102,7 +1102,7 @@ const Dashboard = () => {
                         </span>
                       </div>
 
-                      <div className="mt-4 flex flex-wrap gap-2">
+                      <div className="mt-4 flex flex-wrap gap-2 xl:flex-nowrap">
                         <button
                           onClick={() => handleWorkflowToggle(schedule)}
                           disabled={rowActionId === schedule.id}
