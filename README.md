@@ -1,21 +1,51 @@
-sdinasldknslfnlsfn
+<p align="center">
+  <img src="frontend-vite/public/favicon.png" alt="AutoGreener Logo" width="150" height="150" style="border-radius: 12px;"/>
+</p>
 
-# AutoGreener - Automated GitHub Workflow Scheduler 🚀
+<h1 align="center">AutoGreener – Lightweight Contribution Scheduler</h1>
+<p align="center"><b>Automate your GitHub streaks with scheduled green squares.</b></p>
+<p align="center">
+  A simple, privacy-friendly tool to schedule GitHub pushes and keep your contribution graph green – no bloat, no bots, just your own workflow.
+</p>
 
-**AutoGreener** is a full-stack automation system for scheduling GitHub branch merges, pushes, and workflow executions at specific dates and times. Designed for teams and individuals who want to automate contribution graphs, coordinate releases, or enforce time-based code delivery. Built with Node.js, Express, Supabase, GitHub OAuth, and a modern React (Vite) frontend.
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18-blue?logo=react" />
+  <img src="https://img.shields.io/badge/Vite-4.0-purple?logo=vite" />
+  <img src="https://img.shields.io/badge/Express-4.18-green?logo=express" />
+  <img src="https://img.shields.io/badge/Supabase-DB-3ECF8E?logo=supabase" />
+  <img src="https://img.shields.io/badge/GitHub%20OAuth-Enabled-black?logo=github" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow" />
+</p>
 
-## 🎯 Features
+---
+
+## About AutoGreener
+
+AutoGreener is a lightweight, open-source platform that helps you maintain your GitHub contribution streaks by scheduling real pushes to your own repositories. No fake commits, no bots—just a simple dashboard to automate your workflow and keep your green squares going, even on your busiest days.
+
+- **Schedule real GitHub pushes** to any repo you own
+- **OAuth-secured**: Your data stays private, no password sharing
+- **Modern UI**: Built with React, Vite, and Tailwind CSS
+- **Open source**: MIT licensed, easy to self-host
+
+---
+
+## ✨ Features
+
+- **Killer Feature: Streak Builder**  
+  Create multiple day-by-day schedules in one click! Enable “Streak Mode” to quickly automate a series of daily pushes and keep your GitHub streak alive with minimal effort.
+
+- **(Planned) Date Range Streaks**  
+  Select a start and end date, and AutoGreener will automatically schedule daily pushes for the entire range. Perfect for vacations, busy weeks, or planning ahead—just set it and forget it!
 
 - **GitHub OAuth Integration**: Securely connect your GitHub account
 - **Add Repositories**: Register any accessible GitHub repo for scheduling
 - **Branch-to-Branch Merge Scheduling**: Schedule merges from a source branch to a target branch
-- **Date & Time Scheduling**: Pick exact UTC date and time for automatic merges
-- **Dashboard View**: Monitor all scheduled merges and their statuses
-- **Automatic Execution**: Merges execute automatically at scheduled times using the GitHub API
-- **Rollback/Undo Merge**: Revert completed merges with one click
-- **Edit & Cancel**: Modify or remove scheduled merges as needed
-- **Error Handling & Logging**: See detailed error messages and merge results
-- **Expandable Repo Cards**: Click to view merge details, errors, and history
+- **Date & Time Scheduling**: Pick exact UTC date and time for automatic pushes
+- **Dashboard View**: Monitor all scheduled pushes and their statuses
+- **Automatic Execution**: Pushes execute automatically at scheduled times using the GitHub API
+- **Edit & Cancel**: Modify or remove scheduled pushes as needed
+- **Error Handling & Logging**: See detailed error messages and results
 - **Multi-Repo Support**: Manage multiple repositories from one dashboard
 - **Secure Backend**: All sensitive operations require authentication
 
@@ -108,13 +138,11 @@ Frontend runs at http://localhost:5173
 
 - Full backend API (Express.js, Supabase, GitHub OAuth)
 - Real scheduled merges via GitHub API
-- Rollback/undo merge feature (revert completed merges)
 - Dashboard with live status, error/success details
 - Edit, cancel, and reschedule merges
 - Error handling and detailed logging
 - Modern, responsive frontend (React + Vite + Tailwind)
 - Multi-repo and multi-branch support
-- Audit logging for rollbacks
 
 ### 🚧 In Progress / Next
 
@@ -154,7 +182,6 @@ Frontend runs at http://localhost:5173
 - `POST /api/schedule` - Create new schedule
 - `PUT /api/schedule/:id` - Update schedule
 - `DELETE /api/schedule/:id` - Delete schedule
-- `POST /api/schedule/:id/rollback` - Rollback/undo a completed merge
 
 #### Example POST body
 
@@ -171,39 +198,9 @@ Frontend runs at http://localhost:5173
 
 ### Response fields
 
-- `status`: pending | completed | error | rollback-completed
 - `error_message`: error details if merge fails
-- `merge_commit_sha`: SHA of the merge commit (required for rollback)
-- `revert_commit_sha`: SHA of the revert commit (after rollback)
 
 ---
-
-## 🔄 Rollback/Undo Merge Feature
-
-When a scheduled merge is completed, you can rollback (undo) the merge with one click. This creates a new commit that reverses the merge changes.
-
-### How it works
-
-1. After a merge is completed, the merge commit SHA is stored in the database
-2. In the Dashboard, click on a completed merge card to expand details
-3. Click the **Rollback** button
-4. Confirm the rollback action
-5. AutoGreener creates a reverse merge commit that undoes the changes
-6. The schedule status updates to `rollback-completed`
-
-### Technical Details
-
-- Uses GitHub Merge API to create a reverse merge
-- Creates a new commit (does not rewrite history)
-- Safe for public/shared branches
-- Preserves audit trail with timestamps
-- Handles merge conflicts gracefully with clear error messages
-
-### Limitations
-
-- Only works for completed merges with a stored merge commit SHA
-- If conflicts occur during revert, manual resolution is required
-- Cannot rollback a rollback (you can re-merge instead)
 
 ---
 
