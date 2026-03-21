@@ -89,6 +89,7 @@ const createSchedule = async (req, res) => {
     github_repo_url,
     repo_owner,
     repo_name,
+    commit_message,
   } = req.body;
   const userId = req.user?.id;
 
@@ -117,30 +118,65 @@ const createSchedule = async (req, res) => {
   }
 
   try {
-    const scheduleData = {
+    const normalizedRepoPath =
+      repo_path ||
+      (repo_owner && repo_name ? `${repo_owner}/${repo_name}` : null);
+
+    const defaultCommitMessage =
+      commit_message || "Automated push by AutoGreener";
+
+    const baseScheduleData = {
       user_id: userId,
+      repo_path: normalizedRepoPath,
       branch,
       push_time,
       status: "scheduled",
+      commit_message: defaultCommitMessage,
     };
 
-    // Add repo details (prefer GitHub repo info)
-    if (github_repo_url && repo_owner && repo_name) {
-      scheduleData.github_repo_url = github_repo_url;
-      scheduleData.repo_owner = repo_owner;
-      scheduleData.repo_name = repo_name;
-      scheduleData.repo_path = null; // Clear legacy path
-    } else if (repo_path) {
-      scheduleData.repo_path = repo_path;
+    const scheduleDataWithGithub = {
+      ...baseScheduleData,
+      github_repo_url,
+      repo_owner,
+      repo_name,
+    };
+
+    const scheduleInsertVariants = [
+      scheduleDataWithGithub,
+      (() => {
+        const { commit_message: _omit, ...rest } = scheduleDataWithGithub;
+        return rest;
+      })(),
+      baseScheduleData,
+      (() => {
+        const { commit_message: _omit, ...rest } = baseScheduleData;
+        return rest;
+      })(),
+    ];
+
+    let data = null;
+    let insertError = null;
+
+    for (const payload of scheduleInsertVariants) {
+      // Try progressively simpler payloads for compatibility with older DB schemas.
+      const { data: inserted, error } = await supabase
+        .from("schedules")
+        .insert([payload])
+        .select()
+        .single();
+
+      if (!error) {
+        data = inserted;
+        insertError = null;
+        break;
+      }
+
+      insertError = error;
     }
 
-    const { data, error } = await supabase
-      .from("schedules")
-      .insert([scheduleData])
-      .select()
-      .single();
-
-    if (error) throw error;
+    if (insertError) {
+      throw insertError;
+    }
 
     // Deploy workflow to GitHub if repo details are provided
     let workflowDeployed = false;
