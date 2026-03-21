@@ -148,6 +148,23 @@ const Dashboard = () => {
     void loadBranches();
   }, [selectedRepo]);
 
+  // Auto-refresh schedules when there are active schedules (so UI reflects workflow completions)
+  useEffect(() => {
+    let intervalId = null;
+    const shouldPoll = stats.active > 0;
+    if (shouldPoll) {
+      // Poll every 15 seconds
+      intervalId = setInterval(() => {
+        void fetchSchedules();
+      }, 15000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats.active]);
+
   const setBanner = (type, message) => {
     setFeedback({ show: true, type, message });
   };

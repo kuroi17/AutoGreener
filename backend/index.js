@@ -10,6 +10,7 @@ const scheduleRoutes = require("./routes/scheduleRoutes");
 const githubRoutes = require("./routes/githubRoutes");
 const workflowRoutes = require("./routes/workflowRoutes");
 const debugRoutes = require("./routes/debugRoutes");
+const webhookRoutes = require("./routes/webhookRoutes");
 const { loadSchedules, scheduleJob } = require("./services/schedulerService");
 
 const app = express();
@@ -36,7 +37,14 @@ app.use(
     credentials: true, // Allow cookies to be sent
   }),
 );
-app.use(express.json());
+// Preserve raw body for webhook signature verification
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(cookieParser());
 
 // Session configuration
@@ -77,6 +85,7 @@ app.use("/api/schedule", scheduleRoutes);
 app.use("/api/github", githubRoutes);
 app.use("/api/workflow", workflowRoutes);
 app.use("/api/debug", debugRoutes);
+app.use("/api/webhook", webhookRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
