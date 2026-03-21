@@ -125,10 +125,11 @@ const createSchedule = async (req, res) => {
     const defaultCommitMessage =
       commit_message || "Automated push by AutoGreener";
 
+    // Map incoming `branch` to DB `source_branch` to match existing schema.
     const baseScheduleData = {
       user_id: userId,
       repo_path: normalizedRepoPath,
-      branch,
+      source_branch: branch,
       push_time,
       status: "scheduled",
       commit_message: defaultCommitMessage,
@@ -176,6 +177,14 @@ const createSchedule = async (req, res) => {
 
     if (insertError) {
       throw insertError;
+    }
+
+    // Normalize returned data shape for frontend compatibility: older
+    // frontend expects `branch` property. Ensure `branch` is present
+    // by mapping from `source_branch` (or `target_branch` if present).
+    if (data) {
+      data.branch =
+        data.branch || data.source_branch || data.target_branch || null;
     }
 
     // Deploy workflow to GitHub if repo details are provided
@@ -268,7 +277,7 @@ const updateSchedule = async (req, res) => {
     };
 
     if (repo_path !== undefined) updateData.repo_path = repo_path;
-    if (branch) updateData.branch = branch;
+    if (branch) updateData.source_branch = branch;
     if (push_time) updateData.push_time = push_time;
     if (status) updateData.status = status;
     if (github_repo_url) updateData.github_repo_url = github_repo_url;
