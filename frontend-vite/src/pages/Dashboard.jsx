@@ -26,7 +26,10 @@ const INITIAL_FORM = {
   commitMessage: "Automated push by AutoGreener",
   streakMode: false,
   streakDays: 7,
+  streakEndDate: "",
 };
+
+const MAX_STREAK_DAYS = 120;
 
 const Dashboard = () => {
   const [schedules, setSchedules] = useState([]);
@@ -225,10 +228,43 @@ const Dashboard = () => {
 
     try {
       if (form.streakMode) {
-        const totalDays = Math.min(
+        let totalDays = Math.min(
           Math.max(Number(form.streakDays) || 1, 1),
-          30,
+          MAX_STREAK_DAYS,
         );
+
+        if (form.streakEndDate) {
+          const startDate = new Date(`${form.pushDate}T00:00:00`);
+          const endDate = new Date(`${form.streakEndDate}T00:00:00`);
+
+          if (
+            Number.isNaN(startDate.getTime()) ||
+            Number.isNaN(endDate.getTime())
+          ) {
+            setBanner("error", "Invalid date range selected");
+            setSubmitting(false);
+            return;
+          }
+
+          if (endDate < startDate) {
+            setBanner("error", "End date must be on or after start date");
+            setSubmitting(false);
+            return;
+          }
+
+          const diffMs = endDate.getTime() - startDate.getTime();
+          totalDays = Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1;
+
+          if (totalDays > MAX_STREAK_DAYS) {
+            setBanner(
+              "warning",
+              `Date range is too large. Maximum is ${MAX_STREAK_DAYS} days per streak.`,
+            );
+            setSubmitting(false);
+            return;
+          }
+        }
+
         let successCount = 0;
         let failedCount = 0;
 
@@ -508,6 +544,7 @@ const Dashboard = () => {
                     onChange={(event) =>
                       updateForm("pushDate", event.target.value)
                     }
+                    max={form.streakEndDate || undefined}
                     className="w-full rounded-lg border border-emerald-200 px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
                   />
                 </div>
@@ -560,19 +597,43 @@ const Dashboard = () => {
                     />
                     Enable streak mode
                   </label>
-                  {form.streakMode && (
-                    <input
-                      type="number"
-                      min="1"
-                      max="30"
-                      value={form.streakDays}
-                      onChange={(event) =>
-                        updateForm("streakDays", event.target.value)
-                      }
-                      className="w-20 rounded-lg border border-lime-300 bg-white px-2 py-1.5 text-sm text-lime-900 outline-none"
-                    />
-                  )}
                 </div>
+                {form.streakMode && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-lime-900">
+                        Days fallback
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={MAX_STREAK_DAYS}
+                        value={form.streakDays}
+                        onChange={(event) =>
+                          updateForm("streakDays", event.target.value)
+                        }
+                        className="w-full rounded-lg border border-lime-300 bg-white px-2 py-1.5 text-sm text-lime-900 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-lime-900">
+                        End date
+                      </label>
+                      <input
+                        type="date"
+                        min={form.pushDate || undefined}
+                        value={form.streakEndDate}
+                        onChange={(event) =>
+                          updateForm("streakEndDate", event.target.value)
+                        }
+                        className="w-full rounded-lg border border-lime-300 bg-white px-2 py-1.5 text-sm text-lime-900 outline-none"
+                      />
+                    </div>
+                    <p className="col-span-2 text-[11px] text-lime-800">
+                      If end date is set, it overrides days fallback.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <button
