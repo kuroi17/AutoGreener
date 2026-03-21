@@ -27,9 +27,13 @@ const INITIAL_FORM = {
   streakMode: false,
   streakEndDate: "",
   streakTemplate: "daily",
+  pushPlanMode: "interval",
+  intervalHours: 6,
+  customTimes: ["09:00"],
 };
 
 const MAX_STREAK_DAYS = 120;
+const MAX_PUSHES_PER_DAY = 24;
 
 const STREAK_TEMPLATES = [
   {
@@ -277,6 +281,11 @@ const Dashboard = () => {
       return { error, pushCount: 0 };
     }
 
+    const { error: dailyTimeError, times: dailyTimes } = getDailyPushTimes();
+    if (dailyTimeError) {
+      return { error: dailyTimeError, pushCount: 0 };
+    }
+
     const offsets = getPatternOffsets(
       form.pushDate,
       totalDays,
@@ -285,9 +294,18 @@ const Dashboard = () => {
 
     return {
       error: "",
-      pushCount: offsets.length,
+      pushCount: offsets.length * dailyTimes.length,
     };
-  }, [form.streakMode, form.pushDate, form.streakEndDate, form.streakTemplate]);
+  }, [
+    form.streakMode,
+    form.pushDate,
+    form.streakEndDate,
+    form.streakTemplate,
+    form.pushTime,
+    form.pushPlanMode,
+    form.intervalHours,
+    form.customTimes,
+  ]);
 
   const getStatusClassName = (status) => {
     const classes = {
@@ -329,6 +347,96 @@ const Dashboard = () => {
 
   const updateForm = (field, value) => {
     setForm((previous) => ({ ...previous, [field]: value }));
+  };
+
+  const updateCustomTime = (index, value) => {
+    setForm((previous) => {
+      const nextCustomTimes = [...previous.customTimes];
+      nextCustomTimes[index] = value;
+      return { ...previous, customTimes: nextCustomTimes };
+    });
+  };
+
+  const addCustomTime = () => {
+    setForm((previous) => {
+      if (previous.customTimes.length >= MAX_PUSHES_PER_DAY) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        customTimes: [...previous.customTimes, previous.pushTime || "09:00"],
+      };
+    });
+  };
+
+  const removeCustomTime = (index) => {
+    setForm((previous) => {
+      if (previous.customTimes.length <= 1) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        customTimes: previous.customTimes.filter((_, item) => item !== index),
+      };
+    });
+  };
+
+  const getDailyPushTimes = () => {
+    if (form.pushPlanMode === "custom") {
+      const uniqueSorted = [...new Set(form.customTimes)]
+        .filter((time) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time))
+        .sort();
+
+      if (uniqueSorted.length === 0) {
+        return { error: "Add at least one valid custom time", times: [] };
+      }
+
+      return { error: "", times: uniqueSorted };
+    }
+
+    const intervalHours = Math.min(
+      Math.max(Number(form.intervalHours) || 1, 1),
+      23,
+    );
+    const [hourText, minuteText] = form.pushTime.split(":");
+    const baseHour = Number(hourText);
+    const baseMinute = Number(minuteText);
+
+    if (
+      Number.isNaN(baseHour) ||
+      Number.isNaN(baseMinute) ||
+      baseHour < 0 ||
+      baseHour > 23 ||
+      baseMinute < 0 ||
+      baseMinute > 59
+    ) {
+      return { error: "Invalid base time", times: [] };
+    }
+
+    const baseMinutes = baseHour * 60 + baseMinute;
+    const stepMinutes = intervalHours * 60;
+    const times = [];
+
+    for (
+      let total = baseMinutes;
+      total < 24 * 60 && times.length < MAX_PUSHES_PER_DAY;
+      total += stepMinutes
+    ) {
+      const hours = String(Math.floor(total / 60)).padStart(2, "0");
+      const minutes = String(total % 60).padStart(2, "0");
+      times.push(`${hours}:${minutes}`);
+    }
+
+    if (times.length === 0) {
+      return {
+        error: "Interval generated no valid times for the selected day",
+        times: [],
+      };
+    }
+
+    return { error: "", times };
   };
 
   const createSchedulePayload = (pushDate, pushTime, dayOffset = 0) => {
@@ -374,6 +482,14 @@ const Dashboard = () => {
           totalDays,
           form.streakTemplate,
         );
+        const { error: dailyTimeError, times: dailyTimes } =
+          getDailyPushTimes();
+        if (dailyTimeError) {
+          setBanner("error", dailyTimeError);
+          setSubmitting(false);
+          return;
+        }
+
         if (offsets.length === 0) {
           setBanner(
             "warning",
@@ -387,20 +503,22 @@ const Dashboard = () => {
         let failedCount = 0;
 
         for (const dayOffset of offsets) {
-          try {
-            const payload = createSchedulePayload(
-              form.pushDate,
-              form.pushTime,
-              dayOffset,
-            );
-            const response = await scheduleAPI.create(payload);
-            if (response.success) {
-              successCount += 1;
-            } else {
+          for (const pushTime of dailyTimes) {
+            try {
+              const payload = createSchedulePayload(
+                form.pushDate,
+                pushTime,
+                dayOffset,
+              );
+              const response = await scheduleAPI.create(payload);
+              if (response.success) {
+                successCount += 1;
+              } else {
+                failedCount += 1;
+              }
+            } catch (error) {
               failedCount += 1;
             }
-          } catch (error) {
-            failedCount += 1;
           }
         }
 
@@ -735,6 +853,106 @@ const Dashboard = () => {
                     <p className="col-span-2 text-[11px] text-lime-800">
                       End date is required and must be on or after start date.
                     </p>
+
+                    <div className="col-span-2 rounded-lg border border-lime-200 bg-white p-2.5">
+                      <p className="mb-2 text-xs font-medium text-lime-900">
+                        Pushes per day
+                      </p>
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateForm("pushPlanMode", "interval")}
+                          className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                            form.pushPlanMode === "interval"
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                              : "border-lime-200 bg-white text-lime-900"
+                          }`}
+                        >
+                          Interval
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateForm("pushPlanMode", "custom")}
+                          className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                            form.pushPlanMode === "custom"
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                              : "border-lime-200 bg-white text-lime-900"
+                          }`}
+                        >
+                          Custom time set
+                        </button>
+                      </div>
+
+                      {form.pushPlanMode === "interval" ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="mb-1 block text-[11px] font-medium text-lime-900">
+                              Base time
+                            </label>
+                            <input
+                              type="time"
+                              value={form.pushTime}
+                              onChange={(event) =>
+                                updateForm("pushTime", event.target.value)
+                              }
+                              className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] font-medium text-lime-900">
+                              Every X hours
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="23"
+                              value={form.intervalHours}
+                              onChange={(event) =>
+                                updateForm("intervalHours", event.target.value)
+                              }
+                              className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {form.customTimes.map((time, index) => (
+                            <div
+                              key={`${index}-${time}`}
+                              className="flex gap-2"
+                            >
+                              <input
+                                type="time"
+                                value={time}
+                                onChange={(event) =>
+                                  updateCustomTime(index, event.target.value)
+                                }
+                                className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeCustomTime(index)}
+                                disabled={form.customTimes.length <= 1}
+                                className="rounded-lg border border-lime-200 px-2 text-xs text-lime-900 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={addCustomTime}
+                            disabled={
+                              form.customTimes.length >= MAX_PUSHES_PER_DAY
+                            }
+                            className="rounded-lg border border-lime-300 bg-lime-50 px-2.5 py-1 text-xs font-medium text-lime-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Add time
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     {hasValidTemplateRange ? (
                       <div className="col-span-2">
