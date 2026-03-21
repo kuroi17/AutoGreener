@@ -30,8 +30,9 @@ router.get(
     // Debug: log session and user after successful authentication
     console.log("[DEBUG] Session after GitHub callback:", req.session);
     console.log("[DEBUG] User after GitHub callback:", req.user);
-    // Successful authentication, redirect to dashboard
-    res.redirect(`${frontendOrigin}/dashboard?login=success`);
+    // Successful authentication, redirect to app root.
+    // Some static hosts return 404 for deep-link routes unless SPA rewrites are configured.
+    res.redirect(`${frontendOrigin}/?login=success`);
   },
 );
 

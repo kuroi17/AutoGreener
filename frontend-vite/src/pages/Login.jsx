@@ -8,7 +8,7 @@ const Login = () => {
 
   // If already authenticated, redirect to dashboard
   if (authenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (loading) {
