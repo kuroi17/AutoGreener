@@ -2,6 +2,18 @@ const express = require("express");
 const router = express.Router();
 const passport = require("../config/passport");
 
+const DEFAULT_FRONTEND_URL = "https://autogreener.onrender.com";
+const rawFrontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
+let frontendOrigin = DEFAULT_FRONTEND_URL;
+
+try {
+  frontendOrigin = new URL(rawFrontendUrl).origin;
+} catch (error) {
+  console.warn(
+    `Invalid FRONTEND_URL provided (${rawFrontendUrl}). Falling back to ${DEFAULT_FRONTEND_URL}`,
+  );
+}
+
 // GitHub OAuth login route
 router.get(
   "/github",
@@ -12,16 +24,14 @@ router.get(
 router.get(
   "/github/callback",
   passport.authenticate("github", {
-    failureRedirect: `${process.env.FRONTEND_URL || "https://autogreener.onrender.com"}/login?error=auth_failed`,
+    failureRedirect: `${frontendOrigin}/login?error=auth_failed`,
   }),
   (req, res) => {
     // Debug: log session and user after successful authentication
     console.log("[DEBUG] Session after GitHub callback:", req.session);
     console.log("[DEBUG] User after GitHub callback:", req.user);
     // Successful authentication, redirect to dashboard
-    res.redirect(
-      `${process.env.FRONTEND_URL || "https://autogreener.onrender.com"}/?login=success`,
-    );
+    res.redirect(`${frontendOrigin}/dashboard?login=success`);
   },
 );
 

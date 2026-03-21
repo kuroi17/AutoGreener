@@ -13,10 +13,25 @@ const { loadSchedules, scheduleJob } = require("./services/schedulerService");
 
 const app = express();
 
+const DEFAULT_FRONTEND_URL = "https://autogreener.onrender.com";
+const rawFrontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
+let frontendOrigin = DEFAULT_FRONTEND_URL;
+
+try {
+  frontendOrigin = new URL(rawFrontendUrl).origin;
+} catch (error) {
+  console.warn(
+    `Invalid FRONTEND_URL provided (${rawFrontendUrl}). Falling back to ${DEFAULT_FRONTEND_URL}`,
+  );
+}
+
+// Required on Render so secure cookies can be set behind reverse proxy.
+app.set("trust proxy", 1);
+
 // Middleware
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "https://autogreener.onrender.com",
+    origin: frontendOrigin,
     credentials: true, // Allow cookies to be sent
   }),
 );
