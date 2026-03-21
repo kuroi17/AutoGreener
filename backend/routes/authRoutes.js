@@ -15,6 +15,9 @@ router.get(
     failureRedirect: `${process.env.FRONTEND_URL || "https://autogreener.onrender.com"}/login?error=auth_failed`,
   }),
   (req, res) => {
+    // Debug: log session and user after successful authentication
+    console.log("[DEBUG] Session after GitHub callback:", req.session);
+    console.log("[DEBUG] User after GitHub callback:", req.user);
     // Successful authentication, redirect to dashboard
     res.redirect(
       `${process.env.FRONTEND_URL || "https://autogreener.onrender.com"}/?login=success`,
