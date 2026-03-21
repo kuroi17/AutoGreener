@@ -25,7 +25,6 @@ const INITIAL_FORM = {
   pushTime: "09:00",
   commitMessage: "Automated push by AutoGreener",
   streakMode: false,
-  streakDays: 7,
   streakEndDate: "",
   streakTemplate: "daily",
 };
@@ -185,38 +184,37 @@ const Dashboard = () => {
   }, [schedules]);
 
   const resolveTotalDays = () => {
-    let totalDays = Math.min(
-      Math.max(Number(form.streakDays) || 1, 1),
-      MAX_STREAK_DAYS,
-    );
+    if (!form.pushDate || !form.streakEndDate) {
+      return {
+        error: "Start date and end date are required for streak mode",
+        totalDays: 0,
+      };
+    }
 
-    if (form.streakEndDate) {
-      const startDate = new Date(`${form.pushDate}T00:00:00`);
-      const endDate = new Date(`${form.streakEndDate}T00:00:00`);
+    let totalDays = 0;
 
-      if (
-        Number.isNaN(startDate.getTime()) ||
-        Number.isNaN(endDate.getTime())
-      ) {
-        return { error: "Invalid date range selected", totalDays: 0 };
-      }
+    const startDate = new Date(`${form.pushDate}T00:00:00`);
+    const endDate = new Date(`${form.streakEndDate}T00:00:00`);
 
-      if (endDate < startDate) {
-        return {
-          error: "End date must be on or after start date",
-          totalDays: 0,
-        };
-      }
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return { error: "Invalid date range selected", totalDays: 0 };
+    }
 
-      const diffMs = endDate.getTime() - startDate.getTime();
-      totalDays = Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1;
+    if (endDate < startDate) {
+      return {
+        error: "End date must be on or after start date",
+        totalDays: 0,
+      };
+    }
 
-      if (totalDays > MAX_STREAK_DAYS) {
-        return {
-          error: `Date range is too large. Maximum is ${MAX_STREAK_DAYS} days per streak.`,
-          totalDays: 0,
-        };
-      }
+    const diffMs = endDate.getTime() - startDate.getTime();
+    totalDays = Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1;
+
+    if (totalDays > MAX_STREAK_DAYS) {
+      return {
+        error: `Date range is too large. Maximum is ${MAX_STREAK_DAYS} days per streak.`,
+        totalDays: 0,
+      };
     }
 
     return { error: "", totalDays };
@@ -289,13 +287,7 @@ const Dashboard = () => {
       error: "",
       pushCount: offsets.length,
     };
-  }, [
-    form.streakMode,
-    form.pushDate,
-    form.streakDays,
-    form.streakEndDate,
-    form.streakTemplate,
-  ]);
+  }, [form.streakMode, form.pushDate, form.streakEndDate, form.streakTemplate]);
 
   const getStatusClassName = (status) => {
     const classes = {
@@ -726,22 +718,7 @@ const Dashboard = () => {
                 </div>
                 {form.streakMode && (
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-lime-900">
-                        Days fallback
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max={MAX_STREAK_DAYS}
-                        value={form.streakDays}
-                        onChange={(event) =>
-                          updateForm("streakDays", event.target.value)
-                        }
-                        className="w-full rounded-lg border border-lime-300 bg-white px-2 py-1.5 text-sm text-lime-900 outline-none"
-                      />
-                    </div>
-                    <div>
+                    <div className="col-span-2">
                       <label className="mb-1 block text-xs font-medium text-lime-900">
                         End date
                       </label>
@@ -756,7 +733,7 @@ const Dashboard = () => {
                       />
                     </div>
                     <p className="col-span-2 text-[11px] text-lime-800">
-                      If end date is set, it overrides days fallback.
+                      End date is required and must be on or after start date.
                     </p>
 
                     {hasValidTemplateRange ? (
