@@ -1,5 +1,24 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
+const parseErrorResponse = async (response, fallbackMessage) => {
+  let payload = null;
+
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = null;
+  }
+
+  if (payload?.message || payload?.error) {
+    const code = payload?.code ? ` [${payload.code}]` : "";
+    throw new Error(
+      `${payload.message || payload.error}${code}${payload?.hint ? ` - ${payload.hint}` : ""}`,
+    );
+  }
+
+  throw new Error(fallbackMessage);
+};
+
 // Schedule API endpoints
 const scheduleAPI = {
   // Get all schedules
@@ -8,7 +27,7 @@ const scheduleAPI = {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error("Failed to fetch schedules");
+      await parseErrorResponse(response, "Failed to fetch schedules");
     }
     return response.json();
   },
@@ -19,7 +38,7 @@ const scheduleAPI = {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error("Failed to fetch schedule");
+      await parseErrorResponse(response, "Failed to fetch schedule");
     }
     return response.json();
   },
@@ -35,7 +54,7 @@ const scheduleAPI = {
       body: JSON.stringify(scheduleData),
     });
     if (!response.ok) {
-      throw new Error("Failed to create schedule");
+      await parseErrorResponse(response, "Failed to create schedule");
     }
     return response.json();
   },
@@ -51,7 +70,7 @@ const scheduleAPI = {
       body: JSON.stringify(scheduleData),
     });
     if (!response.ok) {
-      throw new Error("Failed to update schedule");
+      await parseErrorResponse(response, "Failed to update schedule");
     }
     return response.json();
   },
@@ -63,7 +82,7 @@ const scheduleAPI = {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error("Failed to toggle schedule status");
+      await parseErrorResponse(response, "Failed to toggle schedule status");
     }
     return response.json();
   },
@@ -75,7 +94,7 @@ const scheduleAPI = {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error("Failed to delete schedule");
+      await parseErrorResponse(response, "Failed to delete schedule");
     }
     return response.json();
   },

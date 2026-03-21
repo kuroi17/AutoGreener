@@ -233,6 +233,9 @@ const createSchedule = async (req, res) => {
       success: false,
       message: "Failed to create schedule",
       error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
     });
   }
 };
