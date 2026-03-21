@@ -27,9 +27,38 @@ const INITIAL_FORM = {
   streakMode: false,
   streakDays: 7,
   streakEndDate: "",
+  streakTemplate: "daily",
 };
 
 const MAX_STREAK_DAYS = 120;
+
+const STREAK_TEMPLATES = [
+  {
+    id: "daily",
+    name: "Daily",
+    description: "Push every day in the selected range.",
+  },
+  {
+    id: "weekdays",
+    name: "Weekdays",
+    description: "Push Monday to Friday only.",
+  },
+  {
+    id: "alternating",
+    name: "Alternate Days",
+    description: "Push every other day for a natural rhythm.",
+  },
+  {
+    id: "mwf",
+    name: "Mon-Wed-Fri",
+    description: "Push three times weekly on M/W/F.",
+  },
+  {
+    id: "weekend",
+    name: "Weekend",
+    description: "Push only on Saturday and Sunday.",
+  },
+];
 
 const Dashboard = () => {
   const [schedules, setSchedules] = useState([]);
@@ -155,6 +184,104 @@ const Dashboard = () => {
     };
   }, [schedules]);
 
+  const resolveTotalDays = () => {
+    let totalDays = Math.min(
+      Math.max(Number(form.streakDays) || 1, 1),
+      MAX_STREAK_DAYS,
+    );
+
+    if (form.streakEndDate) {
+      const startDate = new Date(`${form.pushDate}T00:00:00`);
+      const endDate = new Date(`${form.streakEndDate}T00:00:00`);
+
+      if (
+        Number.isNaN(startDate.getTime()) ||
+        Number.isNaN(endDate.getTime())
+      ) {
+        return { error: "Invalid date range selected", totalDays: 0 };
+      }
+
+      if (endDate < startDate) {
+        return {
+          error: "End date must be on or after start date",
+          totalDays: 0,
+        };
+      }
+
+      const diffMs = endDate.getTime() - startDate.getTime();
+      totalDays = Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1;
+
+      if (totalDays > MAX_STREAK_DAYS) {
+        return {
+          error: `Date range is too large. Maximum is ${MAX_STREAK_DAYS} days per streak.`,
+          totalDays: 0,
+        };
+      }
+    }
+
+    return { error: "", totalDays };
+  };
+
+  const getPatternOffsets = (startDateText, totalDays, templateId) => {
+    const baseDate = new Date(`${startDateText}T00:00:00`);
+    const offsets = [];
+
+    for (let dayIndex = 0; dayIndex < totalDays; dayIndex += 1) {
+      const candidateDate = new Date(baseDate);
+      candidateDate.setDate(baseDate.getDate() + dayIndex);
+      const weekday = candidateDate.getDay();
+
+      let includeDay = true;
+      if (templateId === "weekdays") {
+        includeDay = weekday >= 1 && weekday <= 5;
+      } else if (templateId === "alternating") {
+        includeDay = dayIndex % 2 === 0;
+      } else if (templateId === "mwf") {
+        includeDay = [1, 3, 5].includes(weekday);
+      } else if (templateId === "weekend") {
+        includeDay = [0, 6].includes(weekday);
+      }
+
+      if (includeDay) {
+        offsets.push(dayIndex);
+      }
+    }
+
+    return offsets;
+  };
+
+  const selectedTemplate =
+    STREAK_TEMPLATES.find((template) => template.id === form.streakTemplate) ||
+    STREAK_TEMPLATES[0];
+
+  const streakPreview = useMemo(() => {
+    if (!form.streakMode || !form.pushDate) {
+      return null;
+    }
+
+    const { error, totalDays } = resolveTotalDays();
+    if (error) {
+      return { error, pushCount: 0 };
+    }
+
+    const offsets = getPatternOffsets(
+      form.pushDate,
+      totalDays,
+      form.streakTemplate,
+    );
+
+    return {
+      error: "",
+      pushCount: offsets.length,
+    };
+  }, [
+    form.streakMode,
+    form.pushDate,
+    form.streakDays,
+    form.streakEndDate,
+    form.streakTemplate,
+  ]);
+
   const getStatusClassName = (status) => {
     const classes = {
       active: "bg-emerald-100 text-emerald-800 border border-emerald-200",
@@ -228,52 +355,36 @@ const Dashboard = () => {
 
     try {
       if (form.streakMode) {
-        let totalDays = Math.min(
-          Math.max(Number(form.streakDays) || 1, 1),
-          MAX_STREAK_DAYS,
+        const { error, totalDays } = resolveTotalDays();
+        if (error) {
+          setBanner("error", error);
+          setSubmitting(false);
+          return;
+        }
+
+        const offsets = getPatternOffsets(
+          form.pushDate,
+          totalDays,
+          form.streakTemplate,
         );
-
-        if (form.streakEndDate) {
-          const startDate = new Date(`${form.pushDate}T00:00:00`);
-          const endDate = new Date(`${form.streakEndDate}T00:00:00`);
-
-          if (
-            Number.isNaN(startDate.getTime()) ||
-            Number.isNaN(endDate.getTime())
-          ) {
-            setBanner("error", "Invalid date range selected");
-            setSubmitting(false);
-            return;
-          }
-
-          if (endDate < startDate) {
-            setBanner("error", "End date must be on or after start date");
-            setSubmitting(false);
-            return;
-          }
-
-          const diffMs = endDate.getTime() - startDate.getTime();
-          totalDays = Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1;
-
-          if (totalDays > MAX_STREAK_DAYS) {
-            setBanner(
-              "warning",
-              `Date range is too large. Maximum is ${MAX_STREAK_DAYS} days per streak.`,
-            );
-            setSubmitting(false);
-            return;
-          }
+        if (offsets.length === 0) {
+          setBanner(
+            "warning",
+            "Selected template produces zero pushes in this date range",
+          );
+          setSubmitting(false);
+          return;
         }
 
         let successCount = 0;
         let failedCount = 0;
 
-        for (let dayIndex = 0; dayIndex < totalDays; dayIndex += 1) {
+        for (const dayOffset of offsets) {
           try {
             const payload = createSchedulePayload(
               form.pushDate,
               form.pushTime,
-              dayIndex,
+              dayOffset,
             );
             const response = await scheduleAPI.create(payload);
             if (response.success) {
@@ -289,12 +400,12 @@ const Dashboard = () => {
         if (failedCount === 0) {
           setBanner(
             "success",
-            `Streak Builder created ${successCount} schedules successfully`,
+            `Streak Builder (${selectedTemplate.name}) created ${successCount} schedules successfully`,
           );
         } else {
           setBanner(
             "warning",
-            `Created ${successCount} schedules, ${failedCount} failed`,
+            `Created ${successCount} schedules with ${selectedTemplate.name}, ${failedCount} failed`,
           );
         }
       } else {
@@ -632,6 +743,50 @@ const Dashboard = () => {
                     <p className="col-span-2 text-[11px] text-lime-800">
                       If end date is set, it overrides days fallback.
                     </p>
+
+                    <div className="col-span-2">
+                      <p className="mb-1 text-xs font-medium text-lime-900">
+                        Contribution pattern template
+                      </p>
+                      <div className="max-h-40 space-y-1.5 overflow-auto rounded-lg border border-lime-200 bg-white p-2">
+                        {STREAK_TEMPLATES.map((template) => {
+                          const active = form.streakTemplate === template.id;
+                          return (
+                            <button
+                              key={template.id}
+                              type="button"
+                              onClick={() =>
+                                updateForm("streakTemplate", template.id)
+                              }
+                              className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                                active
+                                  ? "border-emerald-300 bg-emerald-50"
+                                  : "border-lime-200 bg-white hover:bg-lime-50"
+                              }`}
+                            >
+                              <p className="text-xs font-semibold text-emerald-950">
+                                {template.name}
+                              </p>
+                              <p className="mt-0.5 text-[11px] text-emerald-700">
+                                {template.description}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 rounded-lg border border-lime-200 bg-lime-100/60 px-2.5 py-2 text-[11px] text-lime-900">
+                      {streakPreview?.error ? (
+                        <span>{streakPreview.error}</span>
+                      ) : (
+                        <span>
+                          Preview: {selectedTemplate.name} will create about{" "}
+                          <strong>{streakPreview?.pushCount || 0}</strong>{" "}
+                          scheduled pushes.
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
