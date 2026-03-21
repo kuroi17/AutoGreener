@@ -254,6 +254,21 @@ const Dashboard = () => {
     STREAK_TEMPLATES.find((template) => template.id === form.streakTemplate) ||
     STREAK_TEMPLATES[0];
 
+  const hasValidTemplateRange = useMemo(() => {
+    if (!form.pushDate || !form.streakEndDate) {
+      return false;
+    }
+
+    const startDate = new Date(`${form.pushDate}T00:00:00`);
+    const endDate = new Date(`${form.streakEndDate}T00:00:00`);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return false;
+    }
+
+    return endDate >= startDate;
+  }, [form.pushDate, form.streakEndDate]);
+
   const streakPreview = useMemo(() => {
     if (!form.streakMode || !form.pushDate) {
       return null;
@@ -744,37 +759,44 @@ const Dashboard = () => {
                       If end date is set, it overrides days fallback.
                     </p>
 
-                    <div className="col-span-2">
-                      <p className="mb-1 text-xs font-medium text-lime-900">
-                        Contribution pattern template
-                      </p>
-                      <div className="max-h-40 space-y-1.5 overflow-auto rounded-lg border border-lime-200 bg-white p-2">
-                        {STREAK_TEMPLATES.map((template) => {
-                          const active = form.streakTemplate === template.id;
-                          return (
-                            <button
-                              key={template.id}
-                              type="button"
-                              onClick={() =>
-                                updateForm("streakTemplate", template.id)
-                              }
-                              className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
-                                active
-                                  ? "border-emerald-300 bg-emerald-50"
-                                  : "border-lime-200 bg-white hover:bg-lime-50"
-                              }`}
-                            >
-                              <p className="text-xs font-semibold text-emerald-950">
-                                {template.name}
-                              </p>
-                              <p className="mt-0.5 text-[11px] text-emerald-700">
-                                {template.description}
-                              </p>
-                            </button>
-                          );
-                        })}
+                    {hasValidTemplateRange ? (
+                      <div className="col-span-2">
+                        <p className="mb-1 text-xs font-medium text-lime-900">
+                          Contribution pattern template
+                        </p>
+                        <div className="max-h-40 space-y-1.5 overflow-auto rounded-lg border border-lime-200 bg-white p-2">
+                          {STREAK_TEMPLATES.map((template) => {
+                            const active = form.streakTemplate === template.id;
+                            return (
+                              <button
+                                key={template.id}
+                                type="button"
+                                onClick={() =>
+                                  updateForm("streakTemplate", template.id)
+                                }
+                                className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                                  active
+                                    ? "border-emerald-300 bg-emerald-50"
+                                    : "border-lime-200 bg-white hover:bg-lime-50"
+                                }`}
+                              >
+                                <p className="text-xs font-semibold text-emerald-950">
+                                  {template.name}
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-emerald-700">
+                                  {template.description}
+                                </p>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <p className="col-span-2 text-[11px] text-lime-800">
+                        Pick both start date and end date to unlock pattern
+                        templates.
+                      </p>
+                    )}
 
                     <div className="col-span-2 rounded-lg border border-lime-200 bg-lime-100/60 px-2.5 py-2 text-[11px] text-lime-900">
                       {streakPreview?.error ? (
