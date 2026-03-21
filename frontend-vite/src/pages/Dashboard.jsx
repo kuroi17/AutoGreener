@@ -85,18 +85,24 @@ const Dashboard = () => {
     void Promise.all([fetchSchedules(), fetchRepositories()]);
   }, []);
 
-  const fetchSchedules = async () => {
+  const fetchSchedules = async ({ silent = false } = {}) => {
     try {
-      setLoadingSchedules(true);
+      if (!silent) {
+        setLoadingSchedules(true);
+      }
       const response = await scheduleAPI.getAll();
       if (response.success) {
         setSchedules(response.data || []);
       }
     } catch (error) {
       console.error("Error fetching schedules:", error);
-      setBanner("error", "Failed to load schedules");
+      if (!silent) {
+        setBanner("error", "Failed to load schedules");
+      }
     } finally {
-      setLoadingSchedules(false);
+      if (!silent) {
+        setLoadingSchedules(false);
+      }
     }
   };
 
@@ -151,19 +157,21 @@ const Dashboard = () => {
   // Auto-refresh schedules when there are active schedules (so UI reflects workflow completions)
   useEffect(() => {
     let intervalId = null;
-    const shouldPoll = stats.active > 0;
+    const shouldPoll = schedules.some((item) =>
+      ["active", "scheduled", "in-progress"].includes(item.status),
+    );
+
     if (shouldPoll) {
       // Poll every 15 seconds
       intervalId = setInterval(() => {
-        void fetchSchedules();
+        void fetchSchedules({ silent: true });
       }, 15000);
     }
 
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stats.active]);
+  }, [schedules]);
 
   const setBanner = (type, message) => {
     setFeedback({ show: true, type, message });
