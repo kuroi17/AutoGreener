@@ -9,6 +9,7 @@ const authRoutes = require("./routes/authRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
 const githubRoutes = require("./routes/githubRoutes");
 const workflowRoutes = require("./routes/workflowRoutes");
+const debugRoutes = require("./routes/debugRoutes");
 const { loadSchedules, scheduleJob } = require("./services/schedulerService");
 
 const app = express();
@@ -75,6 +76,7 @@ app.use("/auth", authRoutes);
 app.use("/api/schedule", scheduleRoutes);
 app.use("/api/github", githubRoutes);
 app.use("/api/workflow", workflowRoutes);
+app.use("/api/debug", debugRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

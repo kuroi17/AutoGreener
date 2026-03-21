@@ -136,11 +136,14 @@ Frontend runs at http://localhost:5173
 
 ### ✅ Completed
 
-- Full backend API (Express.js, Supabase, GitHub OAuth)
-- Real scheduled merges via GitHub API
-- Dashboard with live status, error/success details
-- Edit, cancel, and reschedule merges
-- Error handling and detailed logging
+- Full backend API (Express.js, Supabase) with GitHub OAuth
+- Workflow deploy support: creates `.github/workflows/pushclock-schedule-<id>.yml` in target repos
+- Normalized branch handling: backend maps incoming `branch` to `source_branch` and falls back to `target_branch` or repo default when deploying workflows
+- GitHub integration fixes: token compatibility, conditional `branch` payloads, and improved error diagnostics
+- Supabase improvements: prefers service-role key for writes and surfaces DB errors clearly to the frontend
+- Frontend dashboard with live status, error/success details and workflow controls
+- Streak Builder, pushes-per-day (interval + custom times), and date-range scheduling UI improvements
+- Edit, cancel, and reschedule schedules
 - Modern, responsive frontend (React + Vite + Tailwind)
 - Multi-repo and multi-branch support
 
@@ -151,6 +154,15 @@ Frontend runs at http://localhost:5173
 - Approval workflow for merges
 - Comprehensive push/merge history log
 - Conflict detection before scheduling
+
+### 🔧 Recent Backend & Deployment Notes
+
+- OAuth scope: GitHub login now requests the `workflow` scope (in addition to `repo`) — users must re-authenticate after backend redeploy to allow workflow writes.
+- Deployment: After redeploy, re-login to refresh token scopes before using "Deploy workflow".
+- DB compatibility: backend maps `branch` → `source_branch` for compatibility with the existing `schedules` schema; optionally add a `branch` column via Supabase SQL if you want parity.
+- Workflow creation: service validates repo access, chooses an effective branch (prefers schedule branch, falls back to repo default), and creates/updates the workflow file. Errors are logged with GitHub response bodies for easier debugging.
+
+If you want, I can add a small debug endpoint to report the current OAuth token scopes so you can confirm `workflow` is present after re-login.
 
 ## 🎨 UI Preview & Features
 
