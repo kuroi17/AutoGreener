@@ -122,6 +122,7 @@ const Dashboard = () => {
   const [schedulePage, setSchedulePage] = useState(0);
   const [clockNow, setClockNow] = useState(() => new Date());
   const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(true);
+  const [workflowStatusById, setWorkflowStatusById] = useState({});
 
   useEffect(() => {
     void Promise.all([fetchSchedules(), fetchRepositories()]);
@@ -145,7 +146,43 @@ const Dashboard = () => {
 
       const response = await scheduleAPI.getAll();
       if (response.success) {
-        setSchedules(response.data || []);
+        const nextSchedules = response.data || [];
+        setSchedules(nextSchedules);
+
+        const schedulesNeedingStatusProbe = nextSchedules.filter((schedule) => {
+          return (
+            typeof schedule.workflow_deployed !== "boolean" &&
+            schedule.repo_owner &&
+            schedule.repo_name &&
+            workflowStatusById[schedule.id] === undefined
+          );
+        });
+
+        if (schedulesNeedingStatusProbe.length > 0) {
+          void (async () => {
+            const results = await Promise.all(
+              schedulesNeedingStatusProbe.map(async (schedule) => {
+                try {
+                  const status = await workflowAPI.checkStatus(schedule.id);
+                  return [schedule.id, Boolean(status?.workflowDeployed)];
+                } catch (_error) {
+                  return null;
+                }
+              }),
+            );
+
+            const resolvedStatuses = Object.fromEntries(
+              results.filter(Boolean),
+            );
+
+            if (Object.keys(resolvedStatuses).length > 0) {
+              setWorkflowStatusById((previous) => ({
+                ...previous,
+                ...resolvedStatuses,
+              }));
+            }
+          })();
+        }
       }
     } catch (error) {
       console.error("Error fetching schedules:", error);
@@ -761,14 +798,34 @@ const Dashboard = () => {
   const handleWorkflowToggle = async (schedule) => {
     try {
       setRowActionId(schedule.id);
-      const response = schedule.workflow_deployed
+      const isWorkflowDeployed =
+        typeof schedule.workflow_deployed === "boolean"
+          ? schedule.workflow_deployed
+          : Boolean(workflowStatusById[schedule.id]);
+
+      const response = isWorkflowDeployed
         ? await workflowAPI.remove(schedule.id)
         : await workflowAPI.deploy(schedule.id);
 
       if (response.success) {
-        const verb = schedule.workflow_deployed ? "removed" : "deployed";
+        const nextWorkflowState = !isWorkflowDeployed;
+        const verb = nextWorkflowState ? "deployed" : "removed";
+
+        setWorkflowStatusById((previous) => ({
+          ...previous,
+          [schedule.id]: nextWorkflowState,
+        }));
+
+        setSchedules((previous) =>
+          previous.map((item) =>
+            item.id === schedule.id
+              ? { ...item, workflow_deployed: nextWorkflowState }
+              : item,
+          ),
+        );
+
         setBanner("success", `Workflow ${verb} successfully`);
-        await fetchSchedules();
+        await fetchSchedules({ silent: true });
       }
     } catch (error) {
       console.error("Error toggling workflow:", error);
@@ -1329,6 +1386,11 @@ const Dashboard = () => {
               <>
                 <div className="space-y-3">
                   {visibleSchedules.map((schedule) => {
+                    const isWorkflowDeployed =
+                      typeof schedule.workflow_deployed === "boolean"
+                        ? schedule.workflow_deployed
+                        : Boolean(workflowStatusById[schedule.id]);
+
                     const displayRepo =
                       schedule.repo_owner && schedule.repo_name
                         ? `${schedule.repo_owner}/${schedule.repo_name}`
@@ -1377,11 +1439,15 @@ const Dashboard = () => {
                           <button
                             onClick={() => handleWorkflowToggle(schedule)}
                             disabled={rowActionId === schedule.id}
-                            className="rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-800 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className={`rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                              isWorkflowDeployed
+                                ? "border-amber-200 text-amber-800 hover:bg-amber-50"
+                                : "border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+                            }`}
                             title="Sets up/removes the GitHub Actions workflow file for this schedule"
                           >
-                            {schedule.workflow_deployed
-                              ? "Remove setup"
+                            {isWorkflowDeployed
+                              ? "Workflow ready (remove)"
                               : "Setup workflow"}
                           </button>
                           <button

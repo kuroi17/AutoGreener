@@ -52,19 +52,44 @@ router.post("/deploy/:scheduleId", isAuthenticated, async (req, res) => {
     // Deploy workflow
     const result = await WorkflowService.deployWorkflow(accessToken, schedule);
 
-    // Update schedule status to indicate workflow deployed
-    await supabase
+    // Update schedule status to indicate workflow deployed.
+    // Fallback for older schemas that do not include workflow_deployed.
+    const baseUpdate = {
+      status: "scheduled",
+      updated_at: new Date().toISOString(),
+    };
+
+    let updateResult = await supabase
       .from("schedules")
       .update({
-        status: "scheduled",
+        ...baseUpdate,
         workflow_deployed: true,
-        updated_at: new Date().toISOString(),
       })
-      .eq("id", scheduleId);
+      .eq("id", scheduleId)
+      .eq("user_id", userId);
+
+    if (
+      updateResult.error &&
+      /workflow_deployed/i.test(updateResult.error.message || "")
+    ) {
+      updateResult = await supabase
+        .from("schedules")
+        .update(baseUpdate)
+        .eq("id", scheduleId)
+        .eq("user_id", userId);
+    }
+
+    if (updateResult.error) {
+      console.warn(
+        "Unable to persist workflow deployment state:",
+        updateResult.error.message,
+      );
+    }
 
     res.json({
       success: true,
       message: `Workflow ${result.action} successfully`,
+      workflowDeployed: true,
       data: result,
     });
   } catch (error) {
@@ -116,18 +141,42 @@ router.delete("/remove/:scheduleId", isAuthenticated, async (req, res) => {
     // Remove workflow
     const result = await WorkflowService.removeWorkflow(accessToken, schedule);
 
-    // Update schedule status
-    await supabase
+    // Update workflow deployment flag with schema fallback.
+    const baseUpdate = {
+      updated_at: new Date().toISOString(),
+    };
+
+    let updateResult = await supabase
       .from("schedules")
       .update({
+        ...baseUpdate,
         workflow_deployed: false,
-        updated_at: new Date().toISOString(),
       })
-      .eq("id", scheduleId);
+      .eq("id", scheduleId)
+      .eq("user_id", userId);
+
+    if (
+      updateResult.error &&
+      /workflow_deployed/i.test(updateResult.error.message || "")
+    ) {
+      updateResult = await supabase
+        .from("schedules")
+        .update(baseUpdate)
+        .eq("id", scheduleId)
+        .eq("user_id", userId);
+    }
+
+    if (updateResult.error) {
+      console.warn(
+        "Unable to persist workflow removal state:",
+        updateResult.error.message,
+      );
+    }
 
     res.json({
       success: true,
       message: `Workflow ${result.action} successfully`,
+      workflowDeployed: false,
       data: result,
     });
   } catch (error) {
