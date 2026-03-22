@@ -121,6 +121,7 @@ const Dashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [schedulePage, setSchedulePage] = useState(0);
   const [clockNow, setClockNow] = useState(() => new Date());
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(true);
 
   useEffect(() => {
     void Promise.all([fetchSchedules(), fetchRepositories()]);
@@ -1194,35 +1195,53 @@ const Dashboard = () => {
 
                     {hasValidTemplateRange ? (
                       <div className="col-span-2">
-                        <p className="mb-1 text-xs font-medium text-lime-900">
-                          Contribution pattern template
-                        </p>
-                        <div className="max-h-40 space-y-1.5 overflow-auto rounded-lg border border-lime-200 bg-white p-2">
-                          {STREAK_TEMPLATES.map((template) => {
-                            const active = form.streakTemplate === template.id;
-                            return (
-                              <button
-                                key={template.id}
-                                type="button"
-                                onClick={() =>
-                                  updateForm("streakTemplate", template.id)
-                                }
-                                className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
-                                  active
-                                    ? "border-emerald-300 bg-emerald-50"
-                                    : "border-lime-200 bg-white hover:bg-lime-50"
-                                }`}
-                              >
-                                <p className="text-xs font-semibold text-emerald-950">
-                                  {template.name}
-                                </p>
-                                <p className="mt-0.5 text-[11px] text-emerald-700">
-                                  {template.description}
-                                </p>
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setIsTemplatePickerOpen((previous) => !previous)
+                          }
+                          className="mb-1 flex w-full items-center justify-between rounded-lg border border-lime-200 bg-white px-2.5 py-2 text-xs font-medium text-lime-900"
+                        >
+                          <span>Contribution pattern template</span>
+                          <span>
+                            {
+                              STREAK_TEMPLATES.find(
+                                (template) =>
+                                  template.id === form.streakTemplate,
+                              )?.name
+                            }
+                          </span>
+                        </button>
+                        {isTemplatePickerOpen && (
+                          <div className="max-h-40 space-y-1.5 overflow-auto rounded-lg border border-lime-200 bg-white p-2">
+                            {STREAK_TEMPLATES.map((template) => {
+                              const active =
+                                form.streakTemplate === template.id;
+                              return (
+                                <button
+                                  key={template.id}
+                                  type="button"
+                                  onClick={() => {
+                                    updateForm("streakTemplate", template.id);
+                                    setIsTemplatePickerOpen(false);
+                                  }}
+                                  className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                                    active
+                                      ? "border-emerald-300 bg-emerald-50"
+                                      : "border-lime-200 bg-white hover:bg-lime-50"
+                                  }`}
+                                >
+                                  <p className="text-xs font-semibold text-emerald-950">
+                                    {template.name}
+                                  </p>
+                                  <p className="mt-0.5 text-[11px] text-emerald-700">
+                                    {template.description}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <p className="col-span-2 text-[11px] text-lime-800">
@@ -1359,10 +1378,11 @@ const Dashboard = () => {
                             onClick={() => handleWorkflowToggle(schedule)}
                             disabled={rowActionId === schedule.id}
                             className="rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-800 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            title="Sets up/removes the GitHub Actions workflow file for this schedule"
                           >
                             {schedule.workflow_deployed
-                              ? "Remove workflow"
-                              : "Deploy workflow"}
+                              ? "Remove setup"
+                              : "Setup workflow"}
                           </button>
                           <button
                             onClick={() => handleToggle(schedule.id)}
