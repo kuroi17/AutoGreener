@@ -29,6 +29,7 @@ const INITIAL_FORM = {
   pushDate: "",
   pushTime: "09:00",
   commitMessage: "Automated push by AutoGreener",
+  pushCount: 1,
   streakMode: false,
   streakEndDate: "",
   streakTemplate: "daily",
@@ -40,7 +41,6 @@ const INITIAL_FORM = {
 const MAX_STREAK_DAYS = 120;
 const MAX_PUSHES_PER_DAY = 24;
 const CARDS_PER_PAGE = 4;
-const TIME_STEP_MINUTES = 5;
 
 const STREAK_TEMPLATES = [
   {
@@ -77,16 +77,6 @@ const formatDateInput = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const formatDateLabel = (dateText) => {
-  if (!dateText) return "";
-  const date = new Date(`${dateText}T00:00:00`);
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-};
-
 const isSameDate = (left, right) => {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -95,41 +85,19 @@ const isSameDate = (left, right) => {
   );
 };
 
-const createDateOptions = (startDateText, totalDays = MAX_STREAK_DAYS) => {
-  const start = startDateText
-    ? new Date(`${startDateText}T00:00:00`)
-    : new Date();
-
-  const safeStart = new Date(start);
-  safeStart.setHours(0, 0, 0, 0);
-
-  return Array.from({ length: totalDays }, (_, index) => {
-    const date = new Date(safeStart);
-    date.setDate(safeStart.getDate() + index);
-    return formatDateInput(date);
-  });
+const formatTimeInput = (date) => {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
 };
 
-const createTimeOptions = (dateText, now, stepMinutes = TIME_STEP_MINUTES) => {
-  if (!dateText) return [];
-
-  const selectedDate = new Date(`${dateText}T00:00:00`);
-  if (Number.isNaN(selectedDate.getTime())) return [];
-
-  let startMinutes = 0;
-  if (isSameDate(selectedDate, now)) {
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    startMinutes = Math.ceil(currentMinutes / stepMinutes) * stepMinutes;
-  }
-
-  const options = [];
-  for (let minutes = startMinutes; minutes < 24 * 60; minutes += stepMinutes) {
-    const hourText = String(Math.floor(minutes / 60)).padStart(2, "0");
-    const minuteText = String(minutes % 60).padStart(2, "0");
-    options.push(`${hourText}:${minuteText}`);
-  }
-
-  return options;
+const timeTextToMinutes = (timeText) => {
+  if (!timeText || !timeText.includes(":")) return -1;
+  const [hourText, minuteText] = timeText.split(":");
+  const hours = Number(hourText);
+  const minutes = Number(minuteText);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return -1;
+  return hours * 60 + minutes;
 };
 
 const Dashboard = () => {
@@ -312,18 +280,22 @@ const Dashboard = () => {
 
   const minDateText = useMemo(() => formatDateInput(clockNow), [clockNow]);
 
-  const pushDateOptions = useMemo(() => {
-    return createDateOptions(minDateText, MAX_STREAK_DAYS);
-  }, [minDateText]);
+  const minTimeText = useMemo(() => {
+    const nextMinute = new Date(clockNow.getTime() + 60 * 1000);
+    return formatTimeInput(nextMinute);
+  }, [clockNow]);
 
-  const pushTimeOptions = useMemo(() => {
-    return createTimeOptions(form.pushDate, clockNow);
+  const isTodaySelected = useMemo(() => {
+    if (!form.pushDate) return false;
+    const selectedDate = new Date(`${form.pushDate}T00:00:00`);
+    return isSameDate(selectedDate, clockNow);
   }, [form.pushDate, clockNow]);
 
-  const streakEndDateOptions = useMemo(() => {
-    const startText = form.pushDate || minDateText;
-    return createDateOptions(startText, MAX_STREAK_DAYS);
-  }, [form.pushDate, minDateText]);
+  const pushesPerSlot = useMemo(() => {
+    const parsed = Number(form.pushCount);
+    if (Number.isNaN(parsed)) return 1;
+    return Math.min(Math.max(parsed, 1), 20);
+  }, [form.pushCount]);
 
   const totalSchedulePages = Math.max(
     1,
@@ -356,14 +328,14 @@ const Dashboard = () => {
   }, [form.pushDate, minDateText]);
 
   useEffect(() => {
-    if (pushTimeOptions.length === 0) {
+    if (!isTodaySelected) {
       return;
     }
 
-    if (!pushTimeOptions.includes(form.pushTime)) {
-      updateForm("pushTime", pushTimeOptions[0]);
+    if (timeTextToMinutes(form.pushTime) < timeTextToMinutes(minTimeText)) {
+      updateForm("pushTime", minTimeText);
     }
-  }, [pushTimeOptions, form.pushTime]);
+  }, [form.pushTime, isTodaySelected, minTimeText]);
 
   const resolveTotalDays = () => {
     if (!form.pushDate || !form.streakEndDate) {
@@ -449,42 +421,6 @@ const Dashboard = () => {
     return endDate >= startDate;
   }, [form.pushDate, form.streakEndDate]);
 
-  const streakPreview = useMemo(() => {
-    if (!form.streakMode || !form.pushDate) {
-      return null;
-    }
-
-    const { error, totalDays } = resolveTotalDays();
-    if (error) {
-      return { error, pushCount: 0 };
-    }
-
-    const { error: dailyTimeError, times: dailyTimes } = getDailyPushTimes();
-    if (dailyTimeError) {
-      return { error: dailyTimeError, pushCount: 0 };
-    }
-
-    const offsets = getPatternOffsets(
-      form.pushDate,
-      totalDays,
-      form.streakTemplate,
-    );
-
-    return {
-      error: "",
-      pushCount: offsets.length * dailyTimes.length,
-    };
-  }, [
-    form.streakMode,
-    form.pushDate,
-    form.streakEndDate,
-    form.streakTemplate,
-    form.pushTime,
-    form.pushPlanMode,
-    form.intervalHours,
-    form.customTimes,
-  ]);
-
   const getStatusClassName = (status) => {
     const classes = {
       active: "bg-emerald-100 text-emerald-800 border border-emerald-200",
@@ -561,16 +497,16 @@ const Dashboard = () => {
     });
   };
 
-  const getDailyPushTimes = () => {
+  function getDailyPushTimes() {
+    const selectedDate = new Date(`${form.pushDate}T00:00:00`);
+    const isToday = isSameDate(selectedDate, new Date());
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
     if (form.pushPlanMode === "custom") {
       const uniqueSorted = [...new Set(form.customTimes)]
         .filter((time) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time))
         .sort();
-
-      const selectedDate = new Date(`${form.pushDate}T00:00:00`);
-      const isToday = isSameDate(selectedDate, new Date());
-      const now = new Date();
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
       const futureOnly = isToday
         ? uniqueSorted.filter((time) => {
@@ -580,7 +516,10 @@ const Dashboard = () => {
         : uniqueSorted;
 
       if (futureOnly.length === 0) {
-        return { error: "Add at least one valid custom time", times: [] };
+        return {
+          error: "Add at least one valid custom time that is not in the past",
+          times: [],
+        };
       }
 
       return { error: "", times: futureOnly };
@@ -619,15 +558,59 @@ const Dashboard = () => {
       times.push(`${hours}:${minutes}`);
     }
 
-    if (times.length === 0) {
+    const futureOnly = isToday
+      ? times.filter((time) => {
+          const [hours, minutes] = time.split(":").map(Number);
+          return hours * 60 + minutes >= nowMinutes;
+        })
+      : times;
+
+    if (futureOnly.length === 0) {
       return {
         error: "Interval generated no valid future times for the selected day",
         times: [],
       };
     }
 
-    return { error: "", times };
-  };
+    return { error: "", times: futureOnly };
+  }
+
+  const streakPreview = useMemo(() => {
+    if (!form.streakMode || !form.pushDate) {
+      return null;
+    }
+
+    const { error, totalDays } = resolveTotalDays();
+    if (error) {
+      return { error, pushCount: 0 };
+    }
+
+    const { error: dailyTimeError, times: dailyTimes } = getDailyPushTimes();
+    if (dailyTimeError) {
+      return { error: dailyTimeError, pushCount: 0 };
+    }
+
+    const offsets = getPatternOffsets(
+      form.pushDate,
+      totalDays,
+      form.streakTemplate,
+    );
+
+    return {
+      error: "",
+      pushCount: offsets.length * dailyTimes.length * pushesPerSlot,
+    };
+  }, [
+    form.streakMode,
+    form.pushDate,
+    form.streakEndDate,
+    form.streakTemplate,
+    form.pushTime,
+    form.pushPlanMode,
+    form.intervalHours,
+    form.customTimes,
+    pushesPerSlot,
+  ]);
 
   const createSchedulePayload = (pushDate, pushTime, dayOffset = 0) => {
     const baseDate = new Date(`${pushDate}T${pushTime}:00`);
@@ -639,6 +622,7 @@ const Dashboard = () => {
       branch: form.branch,
       push_time: baseDate.toISOString(),
       commit_message: form.commitMessage,
+      push_count: pushesPerSlot,
     };
   };
 
@@ -1002,45 +986,51 @@ const Dashboard = () => {
                     <CalendarDays className="h-4 w-4 text-emerald-600" />
                     Date
                   </label>
-                  <select
+                  <input
+                    type="date"
                     value={form.pushDate}
                     onChange={(event) =>
                       updateForm("pushDate", event.target.value)
                     }
+                    min={minDateText}
                     className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                  >
-                    {pushDateOptions.map((dateText) => (
-                      <option key={dateText} value={dateText}>
-                        {formatDateLabel(dateText)}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div>
                   <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
                     <Clock3 className="h-4 w-4 text-emerald-600" />
                     Time
                   </label>
-                  <select
+                  <input
+                    type="time"
                     value={form.pushTime}
                     onChange={(event) =>
                       updateForm("pushTime", event.target.value)
                     }
+                    min={isTodaySelected ? minTimeText : undefined}
+                    step="60"
                     className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                  >
-                    {pushTimeOptions.length > 0 ? (
-                      pushTimeOptions.map((timeText) => (
-                        <option key={timeText} value={timeText}>
-                          {timeText}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="" disabled>
-                        No future time available
-                      </option>
-                    )}
-                  </select>
+                  />
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-emerald-900">
+                  Pushes at selected schedule time
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={form.pushCount}
+                  onChange={(event) =>
+                    updateForm("pushCount", event.target.value)
+                  }
+                  className="w-full rounded-lg border border-emerald-200 px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
+                />
+                <p className="mt-1 text-xs text-emerald-700">
+                  This applies to normal schedule and each streak schedule slot.
+                </p>
               </div>
 
               <div>
@@ -1084,22 +1074,15 @@ const Dashboard = () => {
                       <label className="mb-1 block text-xs font-medium text-lime-900">
                         End date
                       </label>
-                      <select
+                      <input
+                        type="date"
                         value={form.streakEndDate}
                         onChange={(event) =>
                           updateForm("streakEndDate", event.target.value)
                         }
+                        min={form.pushDate || minDateText}
                         className="w-full rounded-lg border border-lime-300 bg-white px-2 py-1.5 text-sm text-lime-900 outline-none"
-                      >
-                        <option value="" disabled>
-                          Select end date
-                        </option>
-                        {streakEndDateOptions.map((dateText) => (
-                          <option key={dateText} value={dateText}>
-                            {formatDateLabel(dateText)}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
                     <p className="col-span-2 text-[11px] text-lime-800">
                       End date is required and must be on or after start date.
@@ -1140,25 +1123,16 @@ const Dashboard = () => {
                             <label className="mb-1 block text-[11px] font-medium text-lime-900">
                               Base time
                             </label>
-                            <select
+                            <input
+                              type="time"
                               value={form.pushTime}
                               onChange={(event) =>
                                 updateForm("pushTime", event.target.value)
                               }
+                              min={isTodaySelected ? minTimeText : undefined}
+                              step="60"
                               className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
-                            >
-                              {pushTimeOptions.length > 0 ? (
-                                pushTimeOptions.map((timeText) => (
-                                  <option key={timeText} value={timeText}>
-                                    {timeText}
-                                  </option>
-                                ))
-                              ) : (
-                                <option value="" disabled>
-                                  No future time available
-                                </option>
-                              )}
-                            </select>
+                            />
                           </div>
                           <div>
                             <label className="mb-1 block text-[11px] font-medium text-lime-900">
@@ -1183,25 +1157,16 @@ const Dashboard = () => {
                               key={`${index}-${time}`}
                               className="flex gap-2"
                             >
-                              <select
+                              <input
+                                type="time"
                                 value={time}
                                 onChange={(event) =>
                                   updateCustomTime(index, event.target.value)
                                 }
+                                min={isTodaySelected ? minTimeText : undefined}
+                                step="60"
                                 className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
-                              >
-                                {pushTimeOptions.length > 0 ? (
-                                  pushTimeOptions.map((timeText) => (
-                                    <option key={timeText} value={timeText}>
-                                      {timeText}
-                                    </option>
-                                  ))
-                                ) : (
-                                  <option value="" disabled>
-                                    No future time available
-                                  </option>
-                                )}
-                              </select>
+                              />
                               <button
                                 type="button"
                                 onClick={() => removeCustomTime(index)}
@@ -1283,7 +1248,7 @@ const Dashboard = () => {
 
               <button
                 type="submit"
-                disabled={submitting || pushTimeOptions.length === 0}
+                disabled={submitting}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? (
@@ -1371,6 +1336,9 @@ const Dashboard = () => {
                               <span className="flex items-center gap-1">
                                 <GitBranch className="h-4 w-4" />
                                 {schedule.branch}
+                              </span>
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                                x{schedule.push_count || 1} pushes
                               </span>
                               <span className="flex items-center gap-1">
                                 <CalendarClock className="h-4 w-4" />
