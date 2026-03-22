@@ -357,7 +357,7 @@ const updateSchedule = async (req, res) => {
       data.repo_owner &&
       data.repo_name &&
       req.user.access_token &&
-      (branch || push_time || commit_message)
+      (branch || push_time || commit_message || push_count !== undefined)
     ) {
       try {
         await WorkflowService.deployWorkflow(req.user.access_token, data);

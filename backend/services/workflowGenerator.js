@@ -68,10 +68,11 @@ jobs:
       
       - name: Create automated commit
         run: |
+          set -e
           for i in $(seq 1 ${safePushCount}); do
             echo "Automated commit triggered at $(date +%Y-%m-%dT%H:%M:%S) #${"$"}i" >> .pushclock-log
             git add .pushclock-log
-            git commit -m "${escapedMessage} (#${"$"}i/${safePushCount})" || echo "No changes to commit"
+            git commit -m "${escapedMessage} (#${"$"}i/${safePushCount})" || true
           done
       
       - name: Push changes

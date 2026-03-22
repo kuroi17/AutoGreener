@@ -55,15 +55,29 @@ router.post("/github", async (req, res) => {
 
     const scheduleId = workflowName.replace(prefix, "").trim();
     if (!scheduleId) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "No schedule id found in workflow name",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "No schedule id found in workflow name",
+      });
     }
 
     // Only handle completed runs
+    if (
+      action === "requested" ||
+      action === "in_progress" ||
+      run?.status === "queued" ||
+      run?.status === "in_progress"
+    ) {
+      await supabase
+        .from("schedules")
+        .update({ status: "in-progress", updated_at: new Date().toISOString() })
+        .eq("id", scheduleId);
+
+      return res
+        .status(200)
+        .json({ success: true, message: "Marked in-progress" });
+    }
+
     if (action === "completed" || run?.status === "completed") {
       const conclusion = run?.conclusion || null;
       if (conclusion === "success") {

@@ -293,7 +293,7 @@ class GitHubService {
    */
   async getWorkflowRuns(owner, repo, workflowId, options = {}) {
     try {
-      const { per_page = 20, page = 1, event = "schedule" } = options;
+      const { per_page = 20, page = 1, event = null } = options;
 
       const response = await this.client.get(
         `/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs`,
@@ -301,7 +301,7 @@ class GitHubService {
           params: {
             per_page,
             page,
-            event,
+            ...(event ? { event } : {}),
           },
         },
       );
