@@ -539,19 +539,44 @@ module.exports = {
     }
 
     try {
-      const { data: schedules, error } = await supabase
-        .from("schedules")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("workflow_deployed", true)
-        .in("status", ["scheduled", "active", "in-progress"]);
+      const fetchSchedules = async (includeWorkflowFilter) => {
+        let query = supabase
+          .from("schedules")
+          .select("*")
+          .eq("user_id", userId)
+          .in("status", ["scheduled", "active", "in-progress"]);
+
+        if (includeWorkflowFilter) {
+          query = query.eq("workflow_deployed", true);
+        }
+
+        return query;
+      };
+
+      let { data: schedules, error } = await fetchSchedules(true);
+
+      // Backward compatibility for older DB schemas that don't have workflow_deployed.
+      if (error && /workflow_deployed/i.test(error.message || "")) {
+        const fallbackResult = await fetchSchedules(false);
+        schedules = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) throw error;
+
+      const syncCandidates = (schedules || []).filter((schedule) => {
+        if (typeof schedule.workflow_deployed === "boolean") {
+          return schedule.workflow_deployed;
+        }
+
+        // If schema is older, sync only records with repo metadata.
+        return Boolean(schedule.repo_owner && schedule.repo_name);
+      });
 
       const now = new Date();
       let updatedCount = 0;
 
-      for (const schedule of schedules || []) {
+      for (const schedule of syncCandidates) {
         const scheduleTime = new Date(schedule.push_time);
 
         // Ignore schedules far in the future.
@@ -586,7 +611,7 @@ module.exports = {
 
       return res.json({
         success: true,
-        checked: schedules?.length || 0,
+        checked: syncCandidates.length,
         updated: updatedCount,
       });
     } catch (syncError) {
