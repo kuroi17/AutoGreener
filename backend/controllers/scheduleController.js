@@ -7,6 +7,7 @@ const normalizeSchedule = (item) => {
   return {
     ...item,
     branch: item.branch || item.source_branch || item.target_branch || null,
+    push_count: item.push_count || 1,
   };
 };
 
@@ -99,6 +100,7 @@ const createSchedule = async (req, res) => {
     repo_owner,
     repo_name,
     commit_message,
+    push_count,
   } = req.body;
   const userId = req.user?.id;
 
@@ -133,6 +135,10 @@ const createSchedule = async (req, res) => {
 
     const defaultCommitMessage =
       commit_message || "Automated push by AutoGreener";
+    const normalizedPushCount = Math.min(
+      Math.max(Number(push_count) || 1, 1),
+      20,
+    );
 
     // Map incoming `branch` to DB `source_branch` to match existing schema.
     const baseScheduleData = {
@@ -142,6 +148,7 @@ const createSchedule = async (req, res) => {
       push_time,
       status: "scheduled",
       commit_message: defaultCommitMessage,
+      push_count: normalizedPushCount,
     };
 
     const scheduleDataWithGithub = {
@@ -154,12 +161,20 @@ const createSchedule = async (req, res) => {
     const scheduleInsertVariants = [
       scheduleDataWithGithub,
       (() => {
-        const { commit_message: _omit, ...rest } = scheduleDataWithGithub;
+        const {
+          commit_message: _omit,
+          push_count: _omitPushCount,
+          ...rest
+        } = scheduleDataWithGithub;
         return rest;
       })(),
       baseScheduleData,
       (() => {
-        const { commit_message: _omit, ...rest } = baseScheduleData;
+        const {
+          commit_message: _omit,
+          push_count: _omitPushCount,
+          ...rest
+        } = baseScheduleData;
         return rest;
       })(),
     ];
@@ -269,6 +284,7 @@ const updateSchedule = async (req, res) => {
     repo_owner,
     repo_name,
     commit_message,
+    push_count,
   } = req.body;
   const userId = req.user?.id;
 
@@ -293,14 +309,37 @@ const updateSchedule = async (req, res) => {
     if (repo_name) updateData.repo_name = repo_name;
     if (commit_message !== undefined)
       updateData.commit_message = commit_message;
+    if (push_count !== undefined) {
+      updateData.push_count = Math.min(
+        Math.max(Number(push_count) || 1, 1),
+        20,
+      );
+    }
 
-    const { data, error } = await supabase
+    let queryResult = await supabase
       .from("schedules")
       .update(updateData)
       .eq("id", id)
       .eq("user_id", userId)
       .select()
       .single();
+
+    if (
+      queryResult.error &&
+      push_count !== undefined &&
+      /push_count/i.test(queryResult.error.message || "")
+    ) {
+      const { push_count: _omitPushCount, ...fallbackUpdateData } = updateData;
+      queryResult = await supabase
+        .from("schedules")
+        .update(fallbackUpdateData)
+        .eq("id", id)
+        .eq("user_id", userId)
+        .select()
+        .single();
+    }
+
+    const { data, error } = queryResult;
 
     if (error) throw error;
 

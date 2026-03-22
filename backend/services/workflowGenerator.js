@@ -32,12 +32,15 @@ function convertToCronExpression(pushTime) {
  * @returns {string} - YAML workflow content
  */
 function generateWorkflowYAML(options) {
-  const { scheduleId, repoName, branch, pushTime, commitMessage } = options;
+  const { scheduleId, repoName, branch, pushTime, commitMessage, pushCount } =
+    options;
 
   const cronExpression = convertToCronExpression(pushTime);
   const workflowName = `PushClock Schedule ${scheduleId}`;
   const defaultMessage = `Automated commit by PushClock - ${new Date(pushTime).toLocaleString()}`;
   const message = commitMessage || defaultMessage;
+  const safePushCount = Math.min(Math.max(Number(pushCount) || 1, 1), 20);
+  const escapedMessage = message.replaceAll('"', '\\"');
 
   const yaml = `name: ${workflowName}
 
@@ -65,9 +68,11 @@ jobs:
       
       - name: Create automated commit
         run: |
-          echo "Automated commit triggered at $(date)" >> .pushclock-log
-          git add .pushclock-log
-          git commit -m "${message}" || echo "No changes to commit"
+          for i in $(seq 1 ${safePushCount}); do
+            echo "Automated commit triggered at $(date +%Y-%m-%dT%H:%M:%S) #${"$"}i" >> .pushclock-log
+            git add .pushclock-log
+            git commit -m "${escapedMessage} (#${"$"}i/${safePushCount})" || echo "No changes to commit"
+          done
       
       - name: Push changes
         run: |
@@ -109,6 +114,7 @@ function generateWorkflowConfig(schedule) {
     branch: schedule.branch,
     pushTime: schedule.push_time,
     commitMessage: schedule.commit_message,
+    pushCount: schedule.push_count,
   });
 
   return {
