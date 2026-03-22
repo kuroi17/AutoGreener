@@ -4,8 +4,12 @@ import githubAPI from "../services/github";
 import workflowAPI from "../services/workflow";
 import { scheduleAPI } from "../services/api";
 import {
+  ChevronLeft,
+  ChevronRight,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
+  Clock3,
   Flame,
   GitBranch,
   Github,
@@ -14,6 +18,7 @@ import {
   Pause,
   Play,
   Search,
+  Sparkles,
   Trash2,
   Upload,
   XCircle,
@@ -34,6 +39,8 @@ const INITIAL_FORM = {
 
 const MAX_STREAK_DAYS = 120;
 const MAX_PUSHES_PER_DAY = 24;
+const CARDS_PER_PAGE = 4;
+const TIME_STEP_MINUTES = 5;
 
 const STREAK_TEMPLATES = [
   {
@@ -63,6 +70,68 @@ const STREAK_TEMPLATES = [
   },
 ];
 
+const formatDateInput = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatDateLabel = (dateText) => {
+  if (!dateText) return "";
+  const date = new Date(`${dateText}T00:00:00`);
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const isSameDate = (left, right) => {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+};
+
+const createDateOptions = (startDateText, totalDays = MAX_STREAK_DAYS) => {
+  const start = startDateText
+    ? new Date(`${startDateText}T00:00:00`)
+    : new Date();
+
+  const safeStart = new Date(start);
+  safeStart.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: totalDays }, (_, index) => {
+    const date = new Date(safeStart);
+    date.setDate(safeStart.getDate() + index);
+    return formatDateInput(date);
+  });
+};
+
+const createTimeOptions = (dateText, now, stepMinutes = TIME_STEP_MINUTES) => {
+  if (!dateText) return [];
+
+  const selectedDate = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(selectedDate.getTime())) return [];
+
+  let startMinutes = 0;
+  if (isSameDate(selectedDate, now)) {
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    startMinutes = Math.ceil(currentMinutes / stepMinutes) * stepMinutes;
+  }
+
+  const options = [];
+  for (let minutes = startMinutes; minutes < 24 * 60; minutes += stepMinutes) {
+    const hourText = String(Math.floor(minutes / 60)).padStart(2, "0");
+    const minuteText = String(minutes % 60).padStart(2, "0");
+    options.push(`${hourText}:${minuteText}`);
+  }
+
+  return options;
+};
+
 const Dashboard = () => {
   const [schedules, setSchedules] = useState([]);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
@@ -80,16 +149,31 @@ const Dashboard = () => {
     type: "",
     message: "",
   });
+  const [hasLoadedSchedules, setHasLoadedSchedules] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [schedulePage, setSchedulePage] = useState(0);
+  const [clockNow, setClockNow] = useState(() => new Date());
 
   useEffect(() => {
     void Promise.all([fetchSchedules(), fetchRepositories()]);
+  }, []);
+
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setClockNow(new Date());
+    }, 30000);
+
+    return () => clearInterval(timerId);
   }, []);
 
   const fetchSchedules = async ({ silent = false } = {}) => {
     try {
       if (!silent) {
         setLoadingSchedules(true);
+      } else {
+        setIsRefreshing(true);
       }
+
       const response = await scheduleAPI.getAll();
       if (response.success) {
         setSchedules(response.data || []);
@@ -103,6 +187,8 @@ const Dashboard = () => {
       if (!silent) {
         setLoadingSchedules(false);
       }
+      setIsRefreshing(false);
+      setHasLoadedSchedules(true);
     }
   };
 
@@ -164,7 +250,15 @@ const Dashboard = () => {
     if (shouldPoll) {
       // Poll every 15 seconds
       intervalId = setInterval(() => {
-        void fetchSchedules({ silent: true });
+        void (async () => {
+          try {
+            await scheduleAPI.syncStatus();
+          } catch (_error) {
+            // Ignore sync failures during background refresh and keep list refresh resilient.
+          }
+
+          await fetchSchedules({ silent: true });
+        })();
       }, 15000);
     }
 
@@ -172,6 +266,10 @@ const Dashboard = () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [schedules]);
+
+  useEffect(() => {
+    setSchedulePage(0);
+  }, [repoQuery]);
 
   const setBanner = (type, message) => {
     setFeedback({ show: true, type, message });
@@ -211,6 +309,61 @@ const Dashboard = () => {
       completed: completedCount,
     };
   }, [schedules]);
+
+  const minDateText = useMemo(() => formatDateInput(clockNow), [clockNow]);
+
+  const pushDateOptions = useMemo(() => {
+    return createDateOptions(minDateText, MAX_STREAK_DAYS);
+  }, [minDateText]);
+
+  const pushTimeOptions = useMemo(() => {
+    return createTimeOptions(form.pushDate, clockNow);
+  }, [form.pushDate, clockNow]);
+
+  const streakEndDateOptions = useMemo(() => {
+    const startText = form.pushDate || minDateText;
+    return createDateOptions(startText, MAX_STREAK_DAYS);
+  }, [form.pushDate, minDateText]);
+
+  const totalSchedulePages = Math.max(
+    1,
+    Math.ceil(schedules.length / CARDS_PER_PAGE),
+  );
+
+  const visibleSchedules = useMemo(() => {
+    const start = schedulePage * CARDS_PER_PAGE;
+    return schedules.slice(start, start + CARDS_PER_PAGE);
+  }, [schedules, schedulePage]);
+
+  useEffect(() => {
+    setSchedulePage((previous) => {
+      const maxIndex = Math.max(totalSchedulePages - 1, 0);
+      return Math.min(previous, maxIndex);
+    });
+  }, [totalSchedulePages]);
+
+  useEffect(() => {
+    if (!form.pushDate) {
+      updateForm("pushDate", minDateText);
+      return;
+    }
+
+    const selected = new Date(`${form.pushDate}T00:00:00`);
+    const minDate = new Date(`${minDateText}T00:00:00`);
+    if (selected < minDate) {
+      updateForm("pushDate", minDateText);
+    }
+  }, [form.pushDate, minDateText]);
+
+  useEffect(() => {
+    if (pushTimeOptions.length === 0) {
+      return;
+    }
+
+    if (!pushTimeOptions.includes(form.pushTime)) {
+      updateForm("pushTime", pushTimeOptions[0]);
+    }
+  }, [pushTimeOptions, form.pushTime]);
 
   const resolveTotalDays = () => {
     if (!form.pushDate || !form.streakEndDate) {
@@ -414,11 +567,23 @@ const Dashboard = () => {
         .filter((time) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time))
         .sort();
 
-      if (uniqueSorted.length === 0) {
+      const selectedDate = new Date(`${form.pushDate}T00:00:00`);
+      const isToday = isSameDate(selectedDate, new Date());
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const futureOnly = isToday
+        ? uniqueSorted.filter((time) => {
+            const [hours, minutes] = time.split(":").map(Number);
+            return hours * 60 + minutes >= nowMinutes;
+          })
+        : uniqueSorted;
+
+      if (futureOnly.length === 0) {
         return { error: "Add at least one valid custom time", times: [] };
       }
 
-      return { error: "", times: uniqueSorted };
+      return { error: "", times: futureOnly };
     }
 
     const intervalHours = Math.min(
@@ -456,7 +621,7 @@ const Dashboard = () => {
 
     if (times.length === 0) {
       return {
-        error: "Interval generated no valid times for the selected day",
+        error: "Interval generated no valid future times for the selected day",
         times: [],
       };
     }
@@ -487,6 +652,15 @@ const Dashboard = () => {
 
     if (!form.branch || !form.pushDate || !form.pushTime) {
       setBanner("error", "Branch, date, and time are required");
+      return;
+    }
+
+    const firstScheduledDate = new Date(`${form.pushDate}T${form.pushTime}:00`);
+    if (firstScheduledDate <= new Date()) {
+      setBanner(
+        "error",
+        "Please select a future date and time for the first scheduled push",
+      );
       return;
     }
 
@@ -526,6 +700,7 @@ const Dashboard = () => {
 
         let successCount = 0;
         let failedCount = 0;
+        let skippedPastCount = 0;
 
         for (const dayOffset of offsets) {
           for (const pushTime of dailyTimes) {
@@ -535,6 +710,12 @@ const Dashboard = () => {
                 pushTime,
                 dayOffset,
               );
+
+              if (new Date(payload.push_time) <= new Date()) {
+                skippedPastCount += 1;
+                continue;
+              }
+
               const response = await scheduleAPI.create(payload);
               if (response.success) {
                 successCount += 1;
@@ -547,7 +728,7 @@ const Dashboard = () => {
           }
         }
 
-        if (failedCount === 0) {
+        if (failedCount === 0 && skippedPastCount === 0) {
           setBanner(
             "success",
             `Streak Builder (${selectedTemplate.name}) created ${successCount} schedules successfully`,
@@ -555,7 +736,7 @@ const Dashboard = () => {
         } else {
           setBanner(
             "warning",
-            `Created ${successCount} schedules with ${selectedTemplate.name}, ${failedCount} failed`,
+            `Created ${successCount} schedules with ${selectedTemplate.name}, ${failedCount} failed, ${skippedPastCount} skipped (past times)`,
           );
         }
       } else {
@@ -630,6 +811,27 @@ const Dashboard = () => {
       setRowActionId("");
     }
   };
+
+  if (loadingSchedules && !hasLoadedSchedules) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-lime-100 via-emerald-50 to-white px-4">
+        <div className="w-full max-w-md rounded-3xl border border-emerald-200/70 bg-white/80 p-8 text-center shadow-lg backdrop-blur">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+            <Leaf className="h-7 w-7 animate-pulse" />
+          </div>
+          <h2 className="text-xl font-extrabold text-emerald-950">
+            Warming up AutoGreener
+          </h2>
+          <p className="mt-2 text-sm text-emerald-700">
+            Initial load can take a moment if the backend is waking up.
+          </p>
+          <div className="mt-5 h-2 overflow-hidden rounded-full bg-emerald-100">
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-emerald-500" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-lime-50 to-white">
@@ -796,31 +998,48 @@ const Dashboard = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-emerald-900">
+                  <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
+                    <CalendarDays className="h-4 w-4 text-emerald-600" />
                     Date
                   </label>
-                  <input
-                    type="date"
+                  <select
                     value={form.pushDate}
                     onChange={(event) =>
                       updateForm("pushDate", event.target.value)
                     }
-                    max={form.streakEndDate || undefined}
-                    className="w-full rounded-lg border border-emerald-200 px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                  />
+                    className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
+                  >
+                    {pushDateOptions.map((dateText) => (
+                      <option key={dateText} value={dateText}>
+                        {formatDateLabel(dateText)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-emerald-900">
+                  <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
+                    <Clock3 className="h-4 w-4 text-emerald-600" />
                     Time
                   </label>
-                  <input
-                    type="time"
+                  <select
                     value={form.pushTime}
                     onChange={(event) =>
                       updateForm("pushTime", event.target.value)
                     }
-                    className="w-full rounded-lg border border-emerald-200 px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                  />
+                    className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
+                  >
+                    {pushTimeOptions.length > 0 ? (
+                      pushTimeOptions.map((timeText) => (
+                        <option key={timeText} value={timeText}>
+                          {timeText}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>
+                        No future time available
+                      </option>
+                    )}
+                  </select>
                 </div>
               </div>
 
@@ -865,15 +1084,22 @@ const Dashboard = () => {
                       <label className="mb-1 block text-xs font-medium text-lime-900">
                         End date
                       </label>
-                      <input
-                        type="date"
-                        min={form.pushDate || undefined}
+                      <select
                         value={form.streakEndDate}
                         onChange={(event) =>
                           updateForm("streakEndDate", event.target.value)
                         }
                         className="w-full rounded-lg border border-lime-300 bg-white px-2 py-1.5 text-sm text-lime-900 outline-none"
-                      />
+                      >
+                        <option value="" disabled>
+                          Select end date
+                        </option>
+                        {streakEndDateOptions.map((dateText) => (
+                          <option key={dateText} value={dateText}>
+                            {formatDateLabel(dateText)}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <p className="col-span-2 text-[11px] text-lime-800">
                       End date is required and must be on or after start date.
@@ -914,14 +1140,25 @@ const Dashboard = () => {
                             <label className="mb-1 block text-[11px] font-medium text-lime-900">
                               Base time
                             </label>
-                            <input
-                              type="time"
+                            <select
                               value={form.pushTime}
                               onChange={(event) =>
                                 updateForm("pushTime", event.target.value)
                               }
                               className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
-                            />
+                            >
+                              {pushTimeOptions.length > 0 ? (
+                                pushTimeOptions.map((timeText) => (
+                                  <option key={timeText} value={timeText}>
+                                    {timeText}
+                                  </option>
+                                ))
+                              ) : (
+                                <option value="" disabled>
+                                  No future time available
+                                </option>
+                              )}
+                            </select>
                           </div>
                           <div>
                             <label className="mb-1 block text-[11px] font-medium text-lime-900">
@@ -946,14 +1183,25 @@ const Dashboard = () => {
                               key={`${index}-${time}`}
                               className="flex gap-2"
                             >
-                              <input
-                                type="time"
+                              <select
                                 value={time}
                                 onChange={(event) =>
                                   updateCustomTime(index, event.target.value)
                                 }
                                 className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
-                              />
+                              >
+                                {pushTimeOptions.length > 0 ? (
+                                  pushTimeOptions.map((timeText) => (
+                                    <option key={timeText} value={timeText}>
+                                      {timeText}
+                                    </option>
+                                  ))
+                                ) : (
+                                  <option value="" disabled>
+                                    No future time available
+                                  </option>
+                                )}
+                              </select>
                               <button
                                 type="button"
                                 onClick={() => removeCustomTime(index)}
@@ -1035,7 +1283,7 @@ const Dashboard = () => {
 
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || pushTimeOptions.length === 0}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? (
@@ -1055,13 +1303,23 @@ const Dashboard = () => {
 
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-emerald-950">
-                Scheduled pushes
-              </h2>
+              <div>
+                <h2 className="text-lg font-bold text-emerald-950">
+                  Scheduled pushes
+                </h2>
+                <p className="text-xs text-emerald-700">
+                  Showing up to {CARDS_PER_PAGE} cards per page
+                </p>
+              </div>
               <button
-                onClick={fetchSchedules}
-                className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-50"
+                onClick={() => fetchSchedules()}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-50"
               >
+                {isRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
                 Refresh
               </button>
             </div>
@@ -1084,86 +1342,135 @@ const Dashboard = () => {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {schedules.map((schedule) => {
-                  const displayRepo =
-                    schedule.repo_owner && schedule.repo_name
-                      ? `${schedule.repo_owner}/${schedule.repo_name}`
-                      : schedule.repo_path || "Unknown repository";
+              <>
+                <div className="space-y-3">
+                  {visibleSchedules.map((schedule) => {
+                    const displayRepo =
+                      schedule.repo_owner && schedule.repo_name
+                        ? `${schedule.repo_owner}/${schedule.repo_name}`
+                        : schedule.repo_path || "Unknown repository";
 
-                  return (
-                    <article
-                      key={schedule.id}
-                      className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <a
-                            href={schedule.github_repo_url || "#"}
-                            target={
-                              schedule.github_repo_url ? "_blank" : undefined
-                            }
-                            rel="noreferrer"
-                            className="font-semibold text-emerald-950 hover:text-emerald-700"
-                          >
-                            {displayRepo}
-                          </a>
-                          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-emerald-800">
-                            <span className="flex items-center gap-1">
-                              <GitBranch className="h-4 w-4" />
-                              {schedule.branch}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <CalendarClock className="h-4 w-4" />
-                              {formatDateTime(schedule.push_time)}
-                            </span>
+                    return (
+                      <article
+                        key={schedule.id}
+                        className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <a
+                              href={schedule.github_repo_url || "#"}
+                              target={
+                                schedule.github_repo_url ? "_blank" : undefined
+                              }
+                              rel="noreferrer"
+                              className="font-semibold text-emerald-950 hover:text-emerald-700"
+                            >
+                              {displayRepo}
+                            </a>
+                            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-emerald-800">
+                              <span className="flex items-center gap-1">
+                                <GitBranch className="h-4 w-4" />
+                                {schedule.branch}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <CalendarClock className="h-4 w-4" />
+                                {formatDateTime(schedule.push_time)}
+                              </span>
+                            </div>
                           </div>
+
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusClassName(schedule.status)}`}
+                          >
+                            {schedule.status}
+                          </span>
                         </div>
 
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusClassName(schedule.status)}`}
-                        >
-                          {schedule.status}
-                        </span>
-                      </div>
+                        <div className="mt-4 flex flex-wrap gap-2 xl:flex-nowrap">
+                          <button
+                            onClick={() => handleWorkflowToggle(schedule)}
+                            disabled={rowActionId === schedule.id}
+                            className="rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-800 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {schedule.workflow_deployed
+                              ? "Remove workflow"
+                              : "Deploy workflow"}
+                          </button>
+                          <button
+                            onClick={() => handleToggle(schedule.id)}
+                            disabled={rowActionId === schedule.id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-lime-200 px-3 py-1.5 text-sm text-lime-800 transition-colors hover:bg-lime-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {schedule.status === "paused" ? (
+                              <>
+                                <Play className="h-4 w-4" /> Resume
+                              </>
+                            ) : (
+                              <>
+                                <Pause className="h-4 w-4" /> Pause
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(schedule.id)}
+                            disabled={rowActionId === schedule.id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Trash2 className="h-4 w-4" /> Delete
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
 
-                      <div className="mt-4 flex flex-wrap gap-2 xl:flex-nowrap">
-                        <button
-                          onClick={() => handleWorkflowToggle(schedule)}
-                          disabled={rowActionId === schedule.id}
-                          className="rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-800 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {schedule.workflow_deployed
-                            ? "Remove workflow"
-                            : "Deploy workflow"}
-                        </button>
-                        <button
-                          onClick={() => handleToggle(schedule.id)}
-                          disabled={rowActionId === schedule.id}
-                          className="inline-flex items-center gap-1 rounded-lg border border-lime-200 px-3 py-1.5 text-sm text-lime-800 transition-colors hover:bg-lime-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {schedule.status === "paused" ? (
-                            <>
-                              <Play className="h-4 w-4" /> Resume
-                            </>
-                          ) : (
-                            <>
-                              <Pause className="h-4 w-4" /> Pause
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(schedule.id)}
-                          disabled={rowActionId === schedule.id}
-                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Trash2 className="h-4 w-4" /> Delete
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                {schedules.length > CARDS_PER_PAGE && (
+                  <div className="mt-4 flex items-center justify-between rounded-2xl border border-emerald-100 bg-white px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSchedulePage((previous) => Math.max(previous - 1, 0))
+                      }
+                      disabled={schedulePage <= 0}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2.5 py-1 text-sm text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" /> Prev
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      {Array.from(
+                        { length: totalSchedulePages },
+                        (_, index) => (
+                          <button
+                            key={`schedule-page-${index + 1}`}
+                            type="button"
+                            onClick={() => setSchedulePage(index)}
+                            className={`h-2.5 w-2.5 rounded-full transition-all ${
+                              index === schedulePage
+                                ? "bg-emerald-600"
+                                : "bg-emerald-200 hover:bg-emerald-300"
+                            }`}
+                            aria-label={`Go to page ${index + 1}`}
+                          />
+                        ),
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSchedulePage((previous) =>
+                          Math.min(previous + 1, totalSchedulePages - 1),
+                        )
+                      }
+                      disabled={schedulePage >= totalSchedulePages - 1}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2.5 py-1 text-sm text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Next <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
         </div>
