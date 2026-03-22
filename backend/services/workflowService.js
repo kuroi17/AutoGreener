@@ -208,7 +208,7 @@ class WorkflowService {
         owner,
         repo,
         workflowFileName,
-        { per_page: 20, event: "schedule" },
+        { per_page: 30 },
       );
 
       const expectedWorkflowName = `PushClock Schedule ${schedule.id}`;
@@ -224,9 +224,20 @@ class WorkflowService {
       const scheduledTime = new Date(schedule.push_time);
       const now = new Date();
 
-      if (!latestRun) {
-        // If still before or very close to target time, keep pending.
-        const graceMs = 15 * 60 * 1000;
+      const runTimestamp = latestRun
+        ? new Date(latestRun.created_at || latestRun.run_started_at || 0)
+        : null;
+      const RUN_MATCH_LEEWAY_MS = 10 * 60 * 1000;
+      const isRelevantRun =
+        runTimestamp &&
+        runTimestamp.getTime() >= scheduledTime.getTime() - RUN_MATCH_LEEWAY_MS;
+
+      const resolvedRun = isRelevantRun ? latestRun : null;
+
+      if (!resolvedRun) {
+        // GitHub Actions scheduled runs can be delayed. Keep schedule pending
+        // for a wider grace window before flagging as missing.
+        const graceMs = 60 * 60 * 1000;
         if (scheduledTime.getTime() + graceMs > now.getTime()) {
           return {
             status: "scheduled",
@@ -242,7 +253,7 @@ class WorkflowService {
         };
       }
 
-      if (latestRun.status !== "completed") {
+      if (resolvedRun.status !== "completed") {
         return {
           status: "in-progress",
           error_message: null,
@@ -250,7 +261,7 @@ class WorkflowService {
         };
       }
 
-      if (latestRun.conclusion === "success") {
+      if (resolvedRun.conclusion === "success") {
         return {
           status: "completed",
           error_message: null,
@@ -260,7 +271,7 @@ class WorkflowService {
 
       return {
         status: "error",
-        error_message: `Workflow conclusion: ${latestRun.conclusion || "unknown"}`,
+        error_message: `Workflow conclusion: ${resolvedRun.conclusion || "unknown"}`,
         source: "run_failed",
       };
     } catch (error) {
