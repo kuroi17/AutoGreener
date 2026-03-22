@@ -11,6 +11,21 @@ const normalizeSchedule = (item) => {
   };
 };
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const ensureValidScheduleId = (id, res) => {
+  if (!UUID_REGEX.test(String(id || ""))) {
+    res.status(400).json({
+      success: false,
+      message: "Invalid schedule id",
+    });
+    return false;
+  }
+
+  return true;
+};
+
 // GET all schedules
 const getAllSchedules = async (req, res) => {
   try {
@@ -51,6 +66,10 @@ const getAllSchedules = async (req, res) => {
 const getScheduleById = async (req, res) => {
   const { id } = req.params;
   const userId = req.user?.id;
+
+  if (!ensureValidScheduleId(id, res)) {
+    return;
+  }
 
   if (!userId) {
     return res.status(401).json({
@@ -288,6 +307,10 @@ const updateSchedule = async (req, res) => {
   } = req.body;
   const userId = req.user?.id;
 
+  if (!ensureValidScheduleId(id, res)) {
+    return;
+  }
+
   if (!userId) {
     return res.status(401).json({
       success: false,
@@ -391,6 +414,10 @@ const toggleScheduleStatus = async (req, res) => {
   const { id } = req.params;
   const userId = req.user?.id;
 
+  if (!ensureValidScheduleId(id, res)) {
+    return;
+  }
+
   if (!userId) {
     return res.status(401).json({
       success: false,
@@ -451,6 +478,10 @@ const toggleScheduleStatus = async (req, res) => {
 const deleteSchedule = async (req, res) => {
   const { id } = req.params;
   const userId = req.user?.id;
+
+  if (!ensureValidScheduleId(id, res)) {
+    return;
+  }
 
   if (!userId) {
     return res.status(401).json({
