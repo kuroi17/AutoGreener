@@ -1,5 +1,8 @@
 const GitHubService = require("./githubService");
-const { generateWorkflowConfig } = require("./workflowGenerator");
+const {
+  generateWorkflowConfig,
+  getWorkflowFileName,
+} = require("./workflowGenerator");
 
 /**
  * Workflow Service - Manages GitHub Actions workflow files
@@ -177,6 +180,96 @@ class WorkflowService {
     } catch (error) {
       console.error("Error checking workflow existence:", error);
       return false;
+    }
+  }
+
+  /**
+   * Infer current schedule execution status from GitHub workflow runs.
+   * @param {string} accessToken - User's GitHub access token
+   * @param {Object} schedule - Schedule object from database
+   * @returns {Promise<{status:string, error_message:string|null, source:string}>}
+   */
+  static async syncScheduleStatus(accessToken, schedule) {
+    try {
+      const githubService = new GitHubService(accessToken);
+      const owner = schedule.repo_owner;
+      const repo = schedule.repo_name;
+
+      if (!owner || !repo) {
+        return {
+          status: schedule.status,
+          error_message: null,
+          source: "missing_repo",
+        };
+      }
+
+      const workflowFileName = getWorkflowFileName(schedule.id);
+      const workflowRuns = await githubService.getWorkflowRuns(
+        owner,
+        repo,
+        workflowFileName,
+        { per_page: 20, event: "schedule" },
+      );
+
+      const expectedWorkflowName = `PushClock Schedule ${schedule.id}`;
+      const matchingRuns = workflowRuns
+        .filter((run) => run?.name === expectedWorkflowName)
+        .sort(
+          (a, b) =>
+            new Date(b.created_at || b.run_started_at || 0).getTime() -
+            new Date(a.created_at || a.run_started_at || 0).getTime(),
+        );
+
+      const latestRun = matchingRuns[0];
+      const scheduledTime = new Date(schedule.push_time);
+      const now = new Date();
+
+      if (!latestRun) {
+        // If still before or very close to target time, keep pending.
+        const graceMs = 15 * 60 * 1000;
+        if (scheduledTime.getTime() + graceMs > now.getTime()) {
+          return {
+            status: "scheduled",
+            error_message: null,
+            source: "pending_run",
+          };
+        }
+
+        return {
+          status: "error",
+          error_message: "No workflow run detected after schedule time",
+          source: "missing_run",
+        };
+      }
+
+      if (latestRun.status !== "completed") {
+        return {
+          status: "in-progress",
+          error_message: null,
+          source: "run_in_progress",
+        };
+      }
+
+      if (latestRun.conclusion === "success") {
+        return {
+          status: "completed",
+          error_message: null,
+          source: "run_success",
+        };
+      }
+
+      return {
+        status: "error",
+        error_message: `Workflow conclusion: ${latestRun.conclusion || "unknown"}`,
+        source: "run_failed",
+      };
+    } catch (error) {
+      console.error("Error syncing schedule status from workflow:", error);
+      return {
+        status: schedule.status,
+        error_message: null,
+        source: "sync_error",
+      };
     }
   }
 }

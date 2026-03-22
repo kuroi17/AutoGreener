@@ -56,7 +56,7 @@ router.post("/deploy/:scheduleId", isAuthenticated, async (req, res) => {
     await supabase
       .from("schedules")
       .update({
-        status: "active",
+        status: "scheduled",
         workflow_deployed: true,
         updated_at: new Date().toISOString(),
       })

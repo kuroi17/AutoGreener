@@ -98,6 +98,18 @@ const scheduleAPI = {
     }
     return response.json();
   },
+
+  // Sync schedule statuses with GitHub workflow runs
+  syncStatus: async () => {
+    const response = await fetch(`${API_URL}/api/schedule/sync-status`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      await parseErrorResponse(response, "Failed to sync schedule status");
+    }
+    return response.json();
+  },
 };
 
 export { scheduleAPI, API_URL };

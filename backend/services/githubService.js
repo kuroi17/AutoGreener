@@ -6,6 +6,10 @@ const axios = require("axios");
 class GitHubService {
   constructor(accessToken) {
     this.accessToken = accessToken;
+    this.botName = process.env.AUTOGREENER_BOT_NAME || "AutoGreener Bot";
+    this.botEmail =
+      process.env.AUTOGREENER_BOT_EMAIL ||
+      "autogreener-bot@users.noreply.github.com";
     this.client = axios.create({
       baseURL: "https://api.github.com",
       headers: {
@@ -179,6 +183,14 @@ class GitHubService {
       const payload = {
         message,
         content: Buffer.from(content).toString("base64"),
+        committer: {
+          name: this.botName,
+          email: this.botEmail,
+        },
+        author: {
+          name: this.botName,
+          email: this.botEmail,
+        },
       };
 
       // Only include branch if explicitly provided to avoid sending null
@@ -231,7 +243,18 @@ class GitHubService {
    */
   async deleteFile(owner, repo, path, message, branch, sha) {
     try {
-      const data = { message, sha };
+      const data = {
+        message,
+        sha,
+        committer: {
+          name: this.botName,
+          email: this.botEmail,
+        },
+        author: {
+          name: this.botName,
+          email: this.botEmail,
+        },
+      };
       if (branch) data.branch = branch;
 
       const response = await this.client.delete(
@@ -257,6 +280,39 @@ class GitHubService {
       throw new Error(
         `Failed to delete file: ${error.response?.data?.message || error.message}`,
       );
+    }
+  }
+
+  /**
+   * Get workflow runs for a workflow file/id in a repository
+   * @param {string} owner - Repository owner username
+   * @param {string} repo - Repository name
+   * @param {string} workflowId - Workflow file name or workflow ID
+   * @param {Object} options - Query options
+   * @returns {Promise<Array>} Workflow run list
+   */
+  async getWorkflowRuns(owner, repo, workflowId, options = {}) {
+    try {
+      const { per_page = 20, page = 1, event = "schedule" } = options;
+
+      const response = await this.client.get(
+        `/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs`,
+        {
+          params: {
+            per_page,
+            page,
+            event,
+          },
+        },
+      );
+
+      return response.data?.workflow_runs || [];
+    } catch (error) {
+      console.error(
+        "Error fetching workflow runs:",
+        error.response?.data || error.message,
+      );
+      throw new Error("Failed to fetch workflow runs");
     }
   }
 }

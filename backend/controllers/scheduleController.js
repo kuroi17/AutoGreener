@@ -1,6 +1,15 @@
 const supabase = require("../config/supabase");
 const WorkflowService = require("../services/workflowService");
 
+const normalizeSchedule = (item) => {
+  if (!item) return item;
+
+  return {
+    ...item,
+    branch: item.branch || item.source_branch || item.target_branch || null,
+  };
+};
+
 // GET all schedules
 const getAllSchedules = async (req, res) => {
   try {
@@ -24,7 +33,7 @@ const getAllSchedules = async (req, res) => {
 
     res.json({
       success: true,
-      data: data || [],
+      data: (data || []).map(normalizeSchedule),
       count: data ? data.length : 0,
     });
   } catch (error) {
@@ -68,7 +77,7 @@ const getScheduleById = async (req, res) => {
 
     res.json({
       success: true,
-      data,
+      data: normalizeSchedule(data),
     });
   } catch (error) {
     console.error("Error fetching schedule:", error);
@@ -183,8 +192,7 @@ const createSchedule = async (req, res) => {
     // frontend expects `branch` property. Ensure `branch` is present
     // by mapping from `source_branch` (or `target_branch` if present).
     if (data) {
-      data.branch =
-        data.branch || data.source_branch || data.target_branch || null;
+      data = normalizeSchedule(data);
     }
 
     // Deploy workflow to GitHub if repo details are provided
@@ -202,7 +210,7 @@ const createSchedule = async (req, res) => {
         await supabase
           .from("schedules")
           .update({
-            status: "active",
+            status: "scheduled",
             workflow_deployed: true,
             updated_at: new Date().toISOString(),
           })
@@ -210,7 +218,7 @@ const createSchedule = async (req, res) => {
 
         workflowDeployed = true;
         data.workflow_deployed = true;
-        data.status = "active";
+        data.status = "scheduled";
       } catch (workflowError) {
         console.error("Error deploying workflow:", workflowError);
         // Schedule created but workflow failed - don't fail the entire request
@@ -370,7 +378,7 @@ const toggleScheduleStatus = async (req, res) => {
     }
 
     // Toggle status
-    const newStatus = schedule.status === "active" ? "paused" : "active";
+    const newStatus = schedule.status === "paused" ? "scheduled" : "paused";
 
     const { data, error } = await supabase
       .from("schedules")
@@ -442,4 +450,82 @@ module.exports = {
   updateSchedule,
   toggleScheduleStatus,
   deleteSchedule,
+  syncScheduleStatuses: async (req, res) => {
+    const userId = req.user?.id;
+    const accessToken = req.user?.access_token;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User not authenticated",
+      });
+    }
+
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        message: "GitHub access token not found",
+      });
+    }
+
+    try {
+      const { data: schedules, error } = await supabase
+        .from("schedules")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("workflow_deployed", true)
+        .in("status", ["scheduled", "active", "in-progress"]);
+
+      if (error) throw error;
+
+      const now = new Date();
+      let updatedCount = 0;
+
+      for (const schedule of schedules || []) {
+        const scheduleTime = new Date(schedule.push_time);
+
+        // Ignore schedules far in the future.
+        if (scheduleTime.getTime() - now.getTime() > 15 * 60 * 1000) {
+          continue;
+        }
+
+        const synced = await WorkflowService.syncScheduleStatus(
+          accessToken,
+          normalizeSchedule(schedule),
+        );
+
+        if (
+          synced.status !== schedule.status ||
+          (synced.error_message || null) !== (schedule.error_message || null)
+        ) {
+          const { error: updateError } = await supabase
+            .from("schedules")
+            .update({
+              status: synced.status,
+              error_message: synced.error_message,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", schedule.id)
+            .eq("user_id", userId);
+
+          if (!updateError) {
+            updatedCount += 1;
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        checked: schedules?.length || 0,
+        updated: updatedCount,
+      });
+    } catch (syncError) {
+      console.error("Error syncing schedule statuses:", syncError);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to sync schedule statuses",
+        error: syncError.message,
+      });
+    }
+  },
 };
