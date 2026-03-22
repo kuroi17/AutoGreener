@@ -61,3 +61,6 @@ env/
 # Markdown docs (keep only root README tracked)
 **/*.md
 !/README.md
+
+
+.github/
