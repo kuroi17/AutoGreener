@@ -41,6 +41,7 @@ const INITIAL_FORM = {
 const MAX_STREAK_DAYS = 120;
 const MAX_PUSHES_PER_DAY = 24;
 const CARDS_PER_PAGE = 4;
+const MIN_SCHEDULE_LEAD_MINUTES = 10;
 
 const STREAK_TEMPLATES = [
   {
@@ -319,8 +320,10 @@ const Dashboard = () => {
   const minDateText = useMemo(() => formatDateInput(clockNow), [clockNow]);
 
   const minTimeText = useMemo(() => {
-    const nextMinute = new Date(clockNow.getTime() + 60 * 1000);
-    return formatTimeInput(nextMinute);
+    const minSchedulableTime = new Date(
+      clockNow.getTime() + MIN_SCHEDULE_LEAD_MINUTES * 60 * 1000,
+    );
+    return formatTimeInput(minSchedulableTime);
   }, [clockNow]);
 
   const isTodaySelected = useMemo(() => {
@@ -539,7 +542,11 @@ const Dashboard = () => {
     const selectedDate = new Date(`${form.pushDate}T00:00:00`);
     const isToday = isSameDate(selectedDate, new Date());
     const now = new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const minLeadDate = new Date(
+      now.getTime() + MIN_SCHEDULE_LEAD_MINUTES * 60 * 1000,
+    );
+    const minLeadMinutes =
+      minLeadDate.getHours() * 60 + minLeadDate.getMinutes();
 
     if (form.pushPlanMode === "custom") {
       const uniqueSorted = [...new Set(form.customTimes)]
@@ -549,7 +556,7 @@ const Dashboard = () => {
       const futureOnly = isToday
         ? uniqueSorted.filter((time) => {
             const [hours, minutes] = time.split(":").map(Number);
-            return hours * 60 + minutes >= nowMinutes;
+            return hours * 60 + minutes >= minLeadMinutes;
           })
         : uniqueSorted;
 
@@ -599,7 +606,7 @@ const Dashboard = () => {
     const futureOnly = isToday
       ? times.filter((time) => {
           const [hours, minutes] = time.split(":").map(Number);
-          return hours * 60 + minutes >= nowMinutes;
+          return hours * 60 + minutes >= minLeadMinutes;
         })
       : times;
 
@@ -678,10 +685,14 @@ const Dashboard = () => {
     }
 
     const firstScheduledDate = new Date(`${form.pushDate}T${form.pushTime}:00`);
-    if (firstScheduledDate <= new Date()) {
+    const minSchedulableDate = new Date(
+      Date.now() + MIN_SCHEDULE_LEAD_MINUTES * 60 * 1000,
+    );
+
+    if (firstScheduledDate < minSchedulableDate) {
       setBanner(
         "error",
-        "Please select a future date and time for the first scheduled push",
+        `Please select a date and time at least ${MIN_SCHEDULE_LEAD_MINUTES} minutes ahead`,
       );
       return;
     }
@@ -733,7 +744,7 @@ const Dashboard = () => {
                 dayOffset,
               );
 
-              if (new Date(payload.push_time) <= new Date()) {
+              if (new Date(payload.push_time) < minSchedulableDate) {
                 skippedPastCount += 1;
                 continue;
               }

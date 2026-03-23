@@ -13,12 +13,40 @@ const normalizeSchedule = (item) => {
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MIN_WORKFLOW_LEAD_MINUTES = 10;
 
 const ensureValidScheduleId = (id, res) => {
   if (!UUID_REGEX.test(String(id || ""))) {
     res.status(400).json({
       success: false,
       message: "Invalid schedule id",
+    });
+    return false;
+  }
+
+  return true;
+};
+
+const ensureSchedulablePushTime = (pushTime, res) => {
+  const scheduledDate = new Date(pushTime);
+
+  if (Number.isNaN(scheduledDate.getTime())) {
+    res.status(400).json({
+      success: false,
+      message: "Invalid push_time format",
+    });
+    return false;
+  }
+
+  const now = new Date();
+  const minAllowed = new Date(
+    now.getTime() + MIN_WORKFLOW_LEAD_MINUTES * 60 * 1000,
+  );
+
+  if (scheduledDate.getTime() < minAllowed.getTime()) {
+    res.status(400).json({
+      success: false,
+      message: `push_time must be at least ${MIN_WORKFLOW_LEAD_MINUTES} minutes in the future`,
     });
     return false;
   }
@@ -136,6 +164,10 @@ const createSchedule = async (req, res) => {
       success: false,
       message: "Missing required fields: branch, push_time",
     });
+  }
+
+  if (!ensureSchedulablePushTime(push_time, res)) {
+    return;
   }
 
   // Require either repo_path (legacy) or github repo details
@@ -319,6 +351,10 @@ const updateSchedule = async (req, res) => {
   }
 
   try {
+    if (push_time && !ensureSchedulablePushTime(push_time, res)) {
+      return;
+    }
+
     const updateData = {
       updated_at: new Date().toISOString(),
     };
