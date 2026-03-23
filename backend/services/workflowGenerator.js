@@ -66,37 +66,54 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
       
-      - name: Configure Git
-        # Use the owner's privacy-safe noreply email (ID+username format) so that
-        # commits are attributed to the repo owner and counted in the contribution graph.
+      - name: Resolve owner identity
+        id: owner
+        # Fetch the owner's numeric GitHub user ID via the API so we can build the
+        # ID+username noreply email required for contribution graph attribution.
+        # Falls back to the plain username format if the API call fails.
         run: |
-          owner_id="\${{ github.repository_owner_id }}"
           owner_name="\${{ github.repository_owner }}"
-          git config user.name "${"$"}owner_name"
-          git config user.email "${"$"}{owner_id}+${"$"}{owner_name}@users.noreply.github.com"
+          api_response=$(curl -sf -H "Authorization: token \${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${"$"}owner_name") || true
+          owner_id=$(echo "${"$"}api_response" | grep '"id":' | head -1 | grep -o '[0-9]*') || true
+          if [ -z "${"$"}owner_id" ]; then
+            echo "Warning: could not fetch owner ID, using plain noreply email"
+            owner_email="${"$"}owner_name@users.noreply.github.com"
+          else
+            owner_email="${"$"}{owner_id}+${"$"}{owner_name}@users.noreply.github.com"
+          fi
+          echo "name=${"$"}owner_name" >> "${"$"}GITHUB_OUTPUT"
+          echo "email=${"$"}owner_email" >> "${"$"}GITHUB_OUTPUT"
+      
+      - name: Configure Git
+        run: |
+          git config user.name "\${{ steps.owner.outputs.name }}"
+          git config user.email "\${{ steps.owner.outputs.email }}"
           git config --global --add safe.directory "\${{ github.workspace }}"
       
       - name: Create automated commit
         run: |
-          set -e
           mkdir -p autogreener
-          # Use the ID+username noreply format required for contribution graph attribution.
-          owner_id="\${{ github.repository_owner_id }}"
-          owner_name="\${{ github.repository_owner }}"
-          author_name="${"$"}owner_name"
-          author_email="${"$"}{owner_id}+${"$"}{owner_name}@users.noreply.github.com"
+          author_name="\${{ steps.owner.outputs.name }}"
+          author_email="\${{ steps.owner.outputs.email }}"
+          commit_errors=0
           for i in $(seq 1 ${safePushCount}); do
             timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            # Use GITHUB_RUN_ID + GITHUB_RUN_ATTEMPT + loop index + RANDOM for a
-            # portable, guaranteed-unique nonce (avoids relying on date +%N nanoseconds
-            # which is not available on all runner images).
+            # Portable unique nonce: run ID + attempt + loop index + random seed.
             nonce="${"$"}{GITHUB_RUN_ID}-${"$"}{GITHUB_RUN_ATTEMPT}-${"$"}i-${"$"}RANDOM"
             echo "schedule=${scheduleId} repo=${repoName} branch=${branch} run=${"$"}{GITHUB_RUN_ID} attempt=${"$"}i/${safePushCount} at=${"$"}timestamp nonce=${"$"}nonce" >> autogreener/activity.log
             echo "${"$"}timestamp ${"$"}nonce" > autogreener/run-${"$"}{GITHUB_RUN_ID}-${"$"}i.txt
             git add -A autogreener
-            GIT_AUTHOR_NAME="${"$"}author_name" GIT_AUTHOR_EMAIL="${"$"}author_email" GIT_COMMITTER_NAME="${"$"}author_name" GIT_COMMITTER_EMAIL="${"$"}author_email" GIT_AUTHOR_DATE="${"$"}timestamp" GIT_COMMITTER_DATE="${"$"}timestamp" git commit --allow-empty -m "${escapedMessage} (#${"$"}i/${safePushCount})"
+            if GIT_AUTHOR_NAME="${"$"}author_name" GIT_AUTHOR_EMAIL="${"$"}author_email" GIT_COMMITTER_NAME="${"$"}author_name" GIT_COMMITTER_EMAIL="${"$"}author_email" GIT_AUTHOR_DATE="${"$"}timestamp" GIT_COMMITTER_DATE="${"$"}timestamp" git commit --allow-empty -m "${escapedMessage} (#${"$"}i/${safePushCount})"; then
+              echo "Commit ${"$"}i/${safePushCount} created"
+            else
+              echo "Warning: commit ${"$"}i/${safePushCount} failed" >&2
+              commit_errors=$((commit_errors + 1))
+            fi
             sleep 1
           done
+          if [ "${"$"}commit_errors" -gt 0 ]; then
+            echo "Warning: ${"$"}commit_errors commit(s) failed out of ${safePushCount}" >&2
+          fi
       
       - name: Push changes
         run: |
