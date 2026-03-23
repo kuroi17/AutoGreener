@@ -50,9 +50,11 @@ const RepoSelector = ({
         </div>
       )}
       {selectedRepo && (
-        <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-900">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          <span>{selectedRepo.full_name}</span>
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          <span className="truncate pr-3">{selectedRepo.full_name}</span>
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          </span>
         </div>
       )}
     </div>
