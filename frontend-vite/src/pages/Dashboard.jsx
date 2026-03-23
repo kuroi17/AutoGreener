@@ -15,8 +15,6 @@ import {
   Github,
   Leaf,
   Loader2,
-  Pause,
-  Play,
   Search,
   Sparkles,
   Trash2,
@@ -790,22 +788,6 @@ const Dashboard = () => {
     }
   };
 
-  const handleToggle = async (id) => {
-    try {
-      setRowActionId(id);
-      const response = await scheduleAPI.toggleStatus(id);
-      if (response.success) {
-        setBanner("success", "Schedule status updated");
-        await fetchSchedules();
-      }
-    } catch (error) {
-      console.error("Error toggling schedule:", error);
-      setBanner("error", "Failed to toggle schedule status");
-    } finally {
-      setRowActionId("");
-    }
-  };
-
   const handleWorkflowToggle = async (schedule) => {
     try {
       setRowActionId(schedule.id);
@@ -1008,8 +990,9 @@ const Dashboard = () => {
                   </div>
                 )}
                 {selectedRepo && (
-                  <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-                    Selected: {selectedRepo.full_name}
+                  <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-900">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>{selectedRepo.full_name}</span>
                   </div>
                 )}
               </div>
@@ -1460,21 +1443,6 @@ const Dashboard = () => {
                             {isWorkflowDeployed
                               ? "Workflow ready (remove)"
                               : "Setup workflow"}
-                          </button>
-                          <button
-                            onClick={() => handleToggle(schedule.id)}
-                            disabled={rowActionId === schedule.id}
-                            className="inline-flex items-center gap-1 rounded-lg border border-lime-200 px-3 py-1.5 text-sm text-lime-800 transition-colors hover:bg-lime-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {schedule.status === "paused" ? (
-                              <>
-                                <Play className="h-4 w-4" /> Resume
-                              </>
-                            ) : (
-                              <>
-                                <Pause className="h-4 w-4" /> Pause
-                              </>
-                            )}
                           </button>
                           <button
                             onClick={() => handleDelete(schedule.id)}
