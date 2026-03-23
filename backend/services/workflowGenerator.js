@@ -74,10 +74,12 @@ jobs:
       - name: Create automated commit
         run: |
           set -e
+          mkdir -p autogreener
           for i in $(seq 1 ${safePushCount}); do
-            echo "Automated commit triggered at $(date +%Y-%m-%dT%H:%M:%S) #${"$"}i" >> .pushclock-log
-            git add .pushclock-log
-            git commit -m "${escapedMessage} (#${"$"}i/${safePushCount})" || true
+            timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "schedule=${scheduleId} repo=${repoName} branch=${branch} run=${"$"}{GITHUB_RUN_ID} attempt=${"$"}i/${safePushCount} at=${"$"}timestamp" >> autogreener/activity.log
+            git add -f autogreener/activity.log
+            GIT_AUTHOR_DATE="${"$"}timestamp" GIT_COMMITTER_DATE="${"$"}timestamp" git commit -m "${escapedMessage} (#${"$"}i/${safePushCount})"
           done
       
       - name: Push changes
