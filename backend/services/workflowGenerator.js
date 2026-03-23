@@ -68,8 +68,8 @@ jobs:
       
       - name: Configure Git
         run: |
-          git config user.name "PushClock Bot"
-          git config user.email "pushclock@github-actions.bot"
+          git config user.name "\${{ github.repository_owner }}"
+          git config user.email "\${{ github.repository_owner }}@users.noreply.github.com"
       
       - name: Create automated commit
         run: |
