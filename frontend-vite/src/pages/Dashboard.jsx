@@ -1,23 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Navbar from "../components/Navbar";
+import RepoSelector from "../components/dashboard/RepoSelector";
+import ScheduleCard from "../components/dashboard/ScheduleCard";
 import githubAPI from "../services/github";
 import workflowAPI from "../services/workflow";
 import { scheduleAPI } from "../services/api";
 import {
   ChevronLeft,
   ChevronRight,
-  CalendarClock,
   CalendarDays,
-  CheckCircle2,
   Clock3,
   Flame,
-  GitBranch,
-  Github,
   Leaf,
   Loader2,
-  Search,
   Sparkles,
-  Trash2,
   Upload,
   XCircle,
 } from "lucide-react";
@@ -27,12 +23,12 @@ const INITIAL_FORM = {
   pushDate: "",
   pushTime: "09:00",
   commitMessage: "Automated push by AutoGreener",
-  pushCount: 1,
+  pushCount: "1",
   streakMode: false,
   streakEndDate: "",
   streakTemplate: "daily",
   pushPlanMode: "interval",
-  intervalHours: 6,
+  intervalHours: "6",
   customTimes: ["09:00"],
 };
 
@@ -97,6 +93,20 @@ const timeTextToMinutes = (timeText) => {
   const minutes = Number(minuteText);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return -1;
   return hours * 60 + minutes;
+};
+
+const clampIntegerString = (value, minimum, maximum) => {
+  const digitsOnly = String(value || "").replace(/\D/g, "");
+  if (!digitsOnly) {
+    return String(minimum);
+  }
+
+  const bounded = Math.min(
+    Math.max(Number(digitsOnly) || minimum, minimum),
+    maximum,
+  );
+
+  return String(bounded);
 };
 
 const Dashboard = () => {
@@ -948,54 +958,14 @@ const Dashboard = () => {
             </p>
 
             <form onSubmit={handleCreate} className="mt-4 space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-emerald-900">
-                  Repository
-                </label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-emerald-400" />
-                  <input
-                    value={repoQuery}
-                    onChange={(event) => onRepoQueryChange(event.target.value)}
-                    placeholder={
-                      loadingRepos
-                        ? "Loading repositories..."
-                        : "Search repositories"
-                    }
-                    className="w-full rounded-lg border border-emerald-200 px-9 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                  />
-                </div>
-                {!selectedRepo && repoQuery && filteredRepos.length > 0 && (
-                  <div className="mt-2 max-h-52 overflow-auto rounded-lg border border-emerald-100 bg-white">
-                    {filteredRepos.map((repo) => (
-                      <button
-                        key={repo.id}
-                        type="button"
-                        onClick={() => pickRepo(repo)}
-                        className="flex w-full items-start justify-between border-b border-emerald-50 px-3 py-2 text-left last:border-b-0 hover:bg-emerald-50"
-                      >
-                        <span>
-                          <span className="block text-sm font-semibold text-emerald-950">
-                            {repo.full_name}
-                          </span>
-                          {repo.description && (
-                            <span className="line-clamp-1 block text-xs text-emerald-700">
-                              {repo.description}
-                            </span>
-                          )}
-                        </span>
-                        <Github className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {selectedRepo && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-900">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    <span>{selectedRepo.full_name}</span>
-                  </div>
-                )}
-              </div>
+              <RepoSelector
+                loadingRepos={loadingRepos}
+                repoQuery={repoQuery}
+                onRepoQueryChange={onRepoQueryChange}
+                selectedRepo={selectedRepo}
+                filteredRepos={filteredRepos}
+                onPickRepo={pickRepo}
+              />
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-emerald-900">
@@ -1075,9 +1045,18 @@ const Dashboard = () => {
                   min="1"
                   max="20"
                   value={form.pushCount}
-                  onChange={(event) =>
-                    updateForm("pushCount", event.target.value)
-                  }
+                  onChange={(event) => {
+                    const incoming = event.target.value;
+                    if (/^\d*$/.test(incoming)) {
+                      updateForm("pushCount", incoming);
+                    }
+                  }}
+                  onBlur={() => {
+                    updateForm(
+                      "pushCount",
+                      clampIntegerString(form.pushCount, 1, 20),
+                    );
+                  }}
                   className="w-full rounded-lg border border-emerald-200 px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
                 />
                 <p className="mt-1 text-xs text-emerald-700">
@@ -1195,9 +1174,18 @@ const Dashboard = () => {
                               min="1"
                               max="23"
                               value={form.intervalHours}
-                              onChange={(event) =>
-                                updateForm("intervalHours", event.target.value)
-                              }
+                              onChange={(event) => {
+                                const incoming = event.target.value;
+                                if (/^\d*$/.test(incoming)) {
+                                  updateForm("intervalHours", incoming);
+                                }
+                              }}
+                              onBlur={() => {
+                                updateForm(
+                                  "intervalHours",
+                                  clampIntegerString(form.intervalHours, 1, 23),
+                                );
+                              }}
                               className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
                             />
                           </div>
@@ -1385,74 +1373,17 @@ const Dashboard = () => {
                         ? schedule.workflow_deployed
                         : Boolean(workflowStatusById[schedule.id]);
 
-                    const displayRepo =
-                      schedule.repo_owner && schedule.repo_name
-                        ? `${schedule.repo_owner}/${schedule.repo_name}`
-                        : schedule.repo_path || "Unknown repository";
-
                     return (
-                      <article
+                      <ScheduleCard
                         key={schedule.id}
-                        className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <a
-                              href={schedule.github_repo_url || "#"}
-                              target={
-                                schedule.github_repo_url ? "_blank" : undefined
-                              }
-                              rel="noreferrer"
-                              className="font-semibold text-emerald-950 hover:text-emerald-700"
-                            >
-                              {displayRepo}
-                            </a>
-                            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-emerald-800">
-                              <span className="flex items-center gap-1">
-                                <GitBranch className="h-4 w-4" />
-                                {schedule.branch}
-                              </span>
-                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                                x{schedule.push_count || 1} pushes
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <CalendarClock className="h-4 w-4" />
-                                {formatDateTime(schedule.push_time)}
-                              </span>
-                            </div>
-                          </div>
-
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusClassName(schedule.status)}`}
-                          >
-                            {schedule.status}
-                          </span>
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap gap-2 xl:flex-nowrap">
-                          <button
-                            onClick={() => handleWorkflowToggle(schedule)}
-                            disabled={rowActionId === schedule.id}
-                            className={`rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                              isWorkflowDeployed
-                                ? "border-amber-200 text-amber-800 hover:bg-amber-50"
-                                : "border-emerald-200 text-emerald-800 hover:bg-emerald-50"
-                            }`}
-                            title="Sets up/removes the GitHub Actions workflow file for this schedule"
-                          >
-                            {isWorkflowDeployed
-                              ? "Workflow ready (remove)"
-                              : "Setup workflow"}
-                          </button>
-                          <button
-                            onClick={() => handleDelete(schedule.id)}
-                            disabled={rowActionId === schedule.id}
-                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Trash2 className="h-4 w-4" /> Delete
-                          </button>
-                        </div>
-                      </article>
+                        schedule={schedule}
+                        rowActionId={rowActionId}
+                        isWorkflowDeployed={isWorkflowDeployed}
+                        formatDateTime={formatDateTime}
+                        getStatusClassName={getStatusClassName}
+                        onWorkflowToggle={handleWorkflowToggle}
+                        onDelete={handleDelete}
+                      />
                     );
                   })}
                 </div>
