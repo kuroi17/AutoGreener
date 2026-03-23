@@ -70,16 +70,22 @@ jobs:
         run: |
           git config user.name "\${{ github.repository_owner }}"
           git config user.email "\${{ github.repository_owner }}@users.noreply.github.com"
+          git config --global --add safe.directory "\${{ github.workspace }}"
       
       - name: Create automated commit
         run: |
           set -e
           mkdir -p autogreener
+          author_name="\${{ github.repository_owner }}"
+          author_email="\${{ github.repository_owner }}@users.noreply.github.com"
           for i in $(seq 1 ${safePushCount}); do
             timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "schedule=${scheduleId} repo=${repoName} branch=${branch} run=${"$"}{GITHUB_RUN_ID} attempt=${"$"}i/${safePushCount} at=${"$"}timestamp" >> autogreener/activity.log
-            git add -f autogreener/activity.log
-            GIT_AUTHOR_DATE="${"$"}timestamp" GIT_COMMITTER_DATE="${"$"}timestamp" git commit -m "${escapedMessage} (#${"$"}i/${safePushCount})"
+            nonce="$(date -u +%s%N)-${"$"}RANDOM-${"$"}i"
+            echo "schedule=${scheduleId} repo=${repoName} branch=${branch} run=${"$"}{GITHUB_RUN_ID} attempt=${"$"}i/${safePushCount} at=${"$"}timestamp nonce=${"$"}nonce" >> autogreener/activity.log
+            echo "${"$"}timestamp ${"$"}nonce" > autogreener/run-${"$"}{GITHUB_RUN_ID}-${"$"}i.txt
+            git add -A autogreener
+            GIT_AUTHOR_NAME="${"$"}author_name" GIT_AUTHOR_EMAIL="${"$"}author_email" GIT_COMMITTER_NAME="${"$"}author_name" GIT_COMMITTER_EMAIL="${"$"}author_email" GIT_AUTHOR_DATE="${"$"}timestamp" GIT_COMMITTER_DATE="${"$"}timestamp" git commit --allow-empty -m "${escapedMessage} (#${"$"}i/${safePushCount})"
+            sleep 1
           done
       
       - name: Push changes
