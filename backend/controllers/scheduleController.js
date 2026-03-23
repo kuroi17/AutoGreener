@@ -13,7 +13,6 @@ const normalizeSchedule = (item) => {
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MIN_WORKFLOW_LEAD_MINUTES = 10;
 
 const ensureValidScheduleId = (id, res) => {
   if (!UUID_REGEX.test(String(id || ""))) {
@@ -38,19 +37,8 @@ const ensureSchedulablePushTime = (pushTime, res) => {
     return false;
   }
 
-  const now = new Date();
-  const minAllowed = new Date(
-    now.getTime() + MIN_WORKFLOW_LEAD_MINUTES * 60 * 1000,
-  );
-
-  if (scheduledDate.getTime() < minAllowed.getTime()) {
-    res.status(400).json({
-      success: false,
-      message: `push_time must be at least ${MIN_WORKFLOW_LEAD_MINUTES} minutes in the future`,
-    });
-    return false;
-  }
-
+  // Allow any valid future or past time — the workflow_dispatch trigger lets
+  // users run the workflow manually regardless of the scheduled cron time.
   return true;
 };
 

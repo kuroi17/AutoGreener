@@ -36,7 +36,6 @@ const INITIAL_FORM = {
 const MAX_STREAK_DAYS = 120;
 const MAX_PUSHES_PER_DAY = 24;
 const CARDS_PER_PAGE = 4;
-const MIN_SCHEDULE_LEAD_MINUTES = 10;
 
 const STREAK_TEMPLATES = [
   {
@@ -71,29 +70,6 @@ const formatDateInput = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-};
-
-const isSameDate = (left, right) => {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
-};
-
-const formatTimeInput = (date) => {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-};
-
-const timeTextToMinutes = (timeText) => {
-  if (!timeText || !timeText.includes(":")) return -1;
-  const [hourText, minuteText] = timeText.split(":");
-  const hours = Number(hourText);
-  const minutes = Number(minuteText);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return -1;
-  return hours * 60 + minutes;
 };
 
 const clampIntegerString = (value, minimum, maximum) => {
@@ -328,19 +304,6 @@ const Dashboard = () => {
 
   const minDateText = useMemo(() => formatDateInput(clockNow), [clockNow]);
 
-  const minTimeText = useMemo(() => {
-    const minSchedulableTime = new Date(
-      clockNow.getTime() + MIN_SCHEDULE_LEAD_MINUTES * 60 * 1000,
-    );
-    return formatTimeInput(minSchedulableTime);
-  }, [clockNow]);
-
-  const isTodaySelected = useMemo(() => {
-    if (!form.pushDate) return false;
-    const selectedDate = new Date(`${form.pushDate}T00:00:00`);
-    return isSameDate(selectedDate, clockNow);
-  }, [form.pushDate, clockNow]);
-
   const pushesPerSlot = useMemo(() => {
     const parsed = Number(form.pushCount);
     if (Number.isNaN(parsed)) return 1;
@@ -367,25 +330,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (!form.pushDate) {
       updateForm("pushDate", minDateText);
-      return;
-    }
-
-    const selected = new Date(`${form.pushDate}T00:00:00`);
-    const minDate = new Date(`${minDateText}T00:00:00`);
-    if (selected < minDate) {
-      updateForm("pushDate", minDateText);
     }
   }, [form.pushDate, minDateText]);
-
-  useEffect(() => {
-    if (!isTodaySelected) {
-      return;
-    }
-
-    if (timeTextToMinutes(form.pushTime) < timeTextToMinutes(minTimeText)) {
-      updateForm("pushTime", minTimeText);
-    }
-  }, [form.pushTime, isTodaySelected, minTimeText]);
 
   const resolveTotalDays = () => {
     if (!form.pushDate || !form.streakEndDate) {
@@ -548,35 +494,19 @@ const Dashboard = () => {
   };
 
   function getDailyPushTimes() {
-    const selectedDate = new Date(`${form.pushDate}T00:00:00`);
-    const isToday = isSameDate(selectedDate, new Date());
-    const now = new Date();
-    const minLeadDate = new Date(
-      now.getTime() + MIN_SCHEDULE_LEAD_MINUTES * 60 * 1000,
-    );
-    const minLeadMinutes =
-      minLeadDate.getHours() * 60 + minLeadDate.getMinutes();
-
     if (form.pushPlanMode === "custom") {
       const uniqueSorted = [...new Set(form.customTimes)]
         .filter((time) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time))
         .sort();
 
-      const futureOnly = isToday
-        ? uniqueSorted.filter((time) => {
-            const [hours, minutes] = time.split(":").map(Number);
-            return hours * 60 + minutes >= minLeadMinutes;
-          })
-        : uniqueSorted;
-
-      if (futureOnly.length === 0) {
+      if (uniqueSorted.length === 0) {
         return {
-          error: "Add at least one valid custom time that is not in the past",
+          error: "Add at least one valid custom time (HH:MM format)",
           times: [],
         };
       }
 
-      return { error: "", times: futureOnly };
+      return { error: "", times: uniqueSorted };
     }
 
     const intervalHours = Math.min(
@@ -612,21 +542,14 @@ const Dashboard = () => {
       times.push(`${hours}:${minutes}`);
     }
 
-    const futureOnly = isToday
-      ? times.filter((time) => {
-          const [hours, minutes] = time.split(":").map(Number);
-          return hours * 60 + minutes >= minLeadMinutes;
-        })
-      : times;
-
-    if (futureOnly.length === 0) {
+    if (times.length === 0) {
       return {
-        error: "Interval generated no valid future times for the selected day",
+        error: "Interval generated no times for the selected day",
         times: [],
       };
     }
 
-    return { error: "", times: futureOnly };
+    return { error: "", times };
   }
 
   const streakPreview = useMemo(() => {
@@ -693,19 +616,6 @@ const Dashboard = () => {
       return;
     }
 
-    const firstScheduledDate = new Date(`${form.pushDate}T${form.pushTime}:00`);
-    const minSchedulableDate = new Date(
-      Date.now() + MIN_SCHEDULE_LEAD_MINUTES * 60 * 1000,
-    );
-
-    if (firstScheduledDate < minSchedulableDate) {
-      setBanner(
-        "error",
-        `Please select a date and time at least ${MIN_SCHEDULE_LEAD_MINUTES} minutes ahead`,
-      );
-      return;
-    }
-
     setSubmitting(true);
     closeBanner();
 
@@ -742,7 +652,6 @@ const Dashboard = () => {
 
         let successCount = 0;
         let failedCount = 0;
-        let skippedPastCount = 0;
 
         for (const dayOffset of offsets) {
           for (const pushTime of dailyTimes) {
@@ -752,11 +661,6 @@ const Dashboard = () => {
                 pushTime,
                 dayOffset,
               );
-
-              if (new Date(payload.push_time) < minSchedulableDate) {
-                skippedPastCount += 1;
-                continue;
-              }
 
               const response = await scheduleAPI.create(payload);
               if (response.success) {
@@ -770,7 +674,7 @@ const Dashboard = () => {
           }
         }
 
-        if (failedCount === 0 && skippedPastCount === 0) {
+        if (failedCount === 0) {
           setBanner(
             "success",
             `Streak Builder (${selectedTemplate.name}) created ${successCount} schedules successfully`,
@@ -778,7 +682,7 @@ const Dashboard = () => {
         } else {
           setBanner(
             "warning",
-            `Created ${successCount} schedules with ${selectedTemplate.name}, ${failedCount} failed, ${skippedPastCount} skipped (past times)`,
+            `Created ${successCount} schedules with ${selectedTemplate.name}, ${failedCount} failed`,
           );
         }
       } else {
@@ -1030,7 +934,6 @@ const Dashboard = () => {
                     onChange={(event) =>
                       updateForm("pushTime", event.target.value)
                     }
-                    min={isTodaySelected ? minTimeText : undefined}
                     step="60"
                     className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
                   />
@@ -1161,7 +1064,6 @@ const Dashboard = () => {
                               onChange={(event) =>
                                 updateForm("pushTime", event.target.value)
                               }
-                              min={isTodaySelected ? minTimeText : undefined}
                               step="60"
                               className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
                             />
@@ -1204,7 +1106,6 @@ const Dashboard = () => {
                                 onChange={(event) =>
                                   updateCustomTime(index, event.target.value)
                                 }
-                                min={isTodaySelected ? minTimeText : undefined}
                                 step="60"
                                 className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
                               />
