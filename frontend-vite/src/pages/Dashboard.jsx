@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  CheckCircle2,
   Clock3,
   Flame,
   Leaf,
