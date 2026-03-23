@@ -50,6 +50,9 @@ on:
     - cron: '${cronExpression}'
   workflow_dispatch: # Allows manual trigger
 
+permissions:
+  contents: write
+
 jobs:
   auto-commit:
     runs-on: ubuntu-latest
@@ -60,6 +63,8 @@ jobs:
         with:
           ref: ${branch}
           token: \${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0
       
       - name: Configure Git
         run: |
@@ -77,9 +82,7 @@ jobs:
       
       - name: Push changes
         run: |
-          git push origin ${branch}
-        env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          git push origin HEAD:${branch}
 `;
 
   return yaml;
