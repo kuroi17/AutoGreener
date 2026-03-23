@@ -21,7 +21,30 @@ class GitHubService {
     });
   }
 
-  resolveCommitIdentity(owner) {
+  /**
+   * Build the privacy-safe noreply email in the ID+username format that GitHub
+   * requires for commits to be counted in the contribution graph.
+   * @param {string} ownerName - GitHub username
+   * @param {string|number|null} ownerId - Numeric GitHub user ID (optional)
+   * @returns {string} - Noreply email address
+   */
+  buildNoreplyEmail(ownerName, ownerId) {
+    if (ownerId) {
+      return `${ownerId}+${ownerName}@users.noreply.github.com`;
+    }
+    // Fallback to old format when ID is unavailable (commits may not count in graph)
+    return `${ownerName}@users.noreply.github.com`;
+  }
+
+  /**
+   * Resolve commit author/committer identity for a given owner.
+   * When ownerId is provided the privacy-safe ID+username noreply format is used,
+   * which is required for commits to appear in the GitHub contribution graph.
+   * @param {string} owner - GitHub username
+   * @param {string|number|null} ownerId - Numeric GitHub user ID (optional)
+   * @returns {{name: string, email: string}}
+   */
+  resolveCommitIdentity(owner, ownerId = null) {
     const trimmedOwner = String(owner || "").trim();
     if (!trimmedOwner) {
       return {
@@ -32,8 +55,28 @@ class GitHubService {
 
     return {
       name: trimmedOwner,
-      email: `${trimmedOwner}@users.noreply.github.com`,
+      email: this.buildNoreplyEmail(trimmedOwner, ownerId),
     };
+  }
+
+  /**
+   * Fetch the authenticated user's profile (login + numeric id).
+   * @returns {Promise<{login: string, id: number}>}
+   */
+  async getAuthenticatedUser() {
+    try {
+      const response = await this.client.get("/user");
+      return {
+        login: response.data.login,
+        id: response.data.id,
+      };
+    } catch (error) {
+      console.error(
+        "Error fetching authenticated user:",
+        error.response?.data || error.message,
+      );
+      throw new Error("Failed to fetch authenticated user");
+    }
   }
 
   /**
@@ -193,9 +236,10 @@ class GitHubService {
     message,
     branch,
     sha = null,
+    ownerId = null,
   ) {
     try {
-      const identity = this.resolveCommitIdentity(owner);
+      const identity = this.resolveCommitIdentity(owner, ownerId);
       const payload = {
         message,
         content: Buffer.from(content).toString("base64"),
@@ -255,11 +299,12 @@ class GitHubService {
    * @param {string} message - Commit message
    * @param {string} branch - Target branch
    * @param {string} sha - File SHA (required)
+   * @param {string|number|null} ownerId - Numeric GitHub user ID (optional, for contribution graph)
    * @returns {Promise<Object>} Commit information
    */
-  async deleteFile(owner, repo, path, message, branch, sha) {
+  async deleteFile(owner, repo, path, message, branch, sha, ownerId = null) {
     try {
-      const identity = this.resolveCommitIdentity(owner);
+      const identity = this.resolveCommitIdentity(owner, ownerId);
       const data = {
         message,
         sha,

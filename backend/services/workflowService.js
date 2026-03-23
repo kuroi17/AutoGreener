@@ -25,6 +25,16 @@ class WorkflowService {
         schedule.target_branch ||
         null;
 
+      // Fetch the owner's numeric user ID so we can build the correct
+      // ID+username noreply email for contribution graph attribution.
+      let ownerId = null;
+      try {
+        const authUser = await githubService.getAuthenticatedUser();
+        ownerId = authUser.id;
+      } catch (_) {
+        // Non-fatal: fall back to old email format if ID fetch fails.
+      }
+
       // Scheduled workflows are only picked up from the repository default branch.
       // Keep workflow files there while allowing commits to target executionBranch.
       const repoInfo = await githubService.getRepository(owner, repo);
@@ -56,7 +66,7 @@ class WorkflowService {
         ? `Update PushClock schedule ${schedule.id} workflow`
         : `Add PushClock schedule ${schedule.id} workflow`;
 
-      // Create or update workflow file
+      // Create or update workflow file — pass ownerId for correct noreply email.
       const result = await githubService.createOrUpdateFile(
         owner,
         repo,
@@ -65,6 +75,7 @@ class WorkflowService {
         commitMessage,
         workflowBranch,
         existingFile?.sha || null,
+        ownerId,
       );
 
       return {
@@ -102,6 +113,15 @@ class WorkflowService {
         schedule.source_branch ||
         schedule.target_branch ||
         null;
+
+      // Fetch the owner's numeric user ID for correct noreply email attribution.
+      let ownerId = null;
+      try {
+        const authUser = await githubService.getAuthenticatedUser();
+        ownerId = authUser.id;
+      } catch (_) {
+        // Non-fatal: fall back to old email format if ID fetch fails.
+      }
 
       const repoInfo = await githubService.getRepository(owner, repo);
       const workflowBranch = repoInfo.default_branch;
@@ -143,7 +163,7 @@ class WorkflowService {
 
       const commitMessage = `Remove PushClock schedule ${schedule.id} workflow`;
 
-      // Delete workflow file
+      // Delete workflow file — pass ownerId for correct noreply email.
       const result = await githubService.deleteFile(
         owner,
         repo,
@@ -151,6 +171,7 @@ class WorkflowService {
         commitMessage,
         fileBranch,
         existingFile.sha,
+        ownerId,
       );
 
       return {

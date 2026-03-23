@@ -67,20 +67,30 @@ jobs:
           fetch-depth: 0
       
       - name: Configure Git
+        # Use the owner's privacy-safe noreply email (ID+username format) so that
+        # commits are attributed to the repo owner and counted in the contribution graph.
         run: |
-          git config user.name "\${{ github.repository_owner }}"
-          git config user.email "\${{ github.repository_owner }}@users.noreply.github.com"
+          owner_id="\${{ github.repository_owner_id }}"
+          owner_name="\${{ github.repository_owner }}"
+          git config user.name "${"$"}owner_name"
+          git config user.email "${"$"}{owner_id}+${"$"}{owner_name}@users.noreply.github.com"
           git config --global --add safe.directory "\${{ github.workspace }}"
       
       - name: Create automated commit
         run: |
           set -e
           mkdir -p autogreener
-          author_name="\${{ github.repository_owner }}"
-          author_email="\${{ github.repository_owner }}@users.noreply.github.com"
+          # Use the ID+username noreply format required for contribution graph attribution.
+          owner_id="\${{ github.repository_owner_id }}"
+          owner_name="\${{ github.repository_owner }}"
+          author_name="${"$"}owner_name"
+          author_email="${"$"}{owner_id}+${"$"}{owner_name}@users.noreply.github.com"
           for i in $(seq 1 ${safePushCount}); do
             timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            nonce="$(date -u +%s%N)-${"$"}RANDOM-${"$"}i"
+            # Use GITHUB_RUN_ID + GITHUB_RUN_ATTEMPT + loop index + RANDOM for a
+            # portable, guaranteed-unique nonce (avoids relying on date +%N nanoseconds
+            # which is not available on all runner images).
+            nonce="${"$"}{GITHUB_RUN_ID}-${"$"}{GITHUB_RUN_ATTEMPT}-${"$"}i-${"$"}RANDOM"
             echo "schedule=${scheduleId} repo=${repoName} branch=${branch} run=${"$"}{GITHUB_RUN_ID} attempt=${"$"}i/${safePushCount} at=${"$"}timestamp nonce=${"$"}nonce" >> autogreener/activity.log
             echo "${"$"}timestamp ${"$"}nonce" > autogreener/run-${"$"}{GITHUB_RUN_ID}-${"$"}i.txt
             git add -A autogreener
