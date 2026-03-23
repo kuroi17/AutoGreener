@@ -19,24 +19,27 @@ class WorkflowService {
       const githubService = new GitHubService(accessToken);
       const owner = schedule.repo_owner;
       const repo = schedule.repo_name;
-      const branch =
+      const executionBranch =
         schedule.branch ||
         schedule.source_branch ||
         schedule.target_branch ||
         null;
 
-      // Validate repo access and choose an effective branch.
+      // Scheduled workflows are only picked up from the repository default branch.
+      // Keep workflow files there while allowing commits to target executionBranch.
       const repoInfo = await githubService.getRepository(owner, repo);
-      const effectiveBranch = branch || repoInfo.default_branch;
+      const workflowBranch = repoInfo.default_branch;
+      const effectiveExecutionBranch =
+        executionBranch || repoInfo.default_branch;
 
-      if (!effectiveBranch) {
+      if (!workflowBranch || !effectiveExecutionBranch) {
         throw new Error("No valid branch found for workflow deployment");
       }
 
-      // Generate workflow configuration using effective branch.
+      // Generate workflow configuration using execution branch for checkout/push.
       const workflowConfig = generateWorkflowConfig({
         ...schedule,
-        branch: effectiveBranch,
+        branch: effectiveExecutionBranch,
       });
 
       const path = workflowConfig.filePath;
@@ -46,7 +49,7 @@ class WorkflowService {
         owner,
         repo,
         path,
-        effectiveBranch,
+        workflowBranch,
       );
 
       const commitMessage = existingFile
@@ -60,7 +63,7 @@ class WorkflowService {
         path,
         workflowConfig.content,
         commitMessage,
-        effectiveBranch,
+        workflowBranch,
         existingFile?.sha || null,
       );
 
@@ -94,22 +97,41 @@ class WorkflowService {
       const owner = schedule.repo_owner;
       const repo = schedule.repo_name;
       const path = workflowConfig.filePath;
-      const branch =
+      const executionBranch =
         schedule.branch ||
         schedule.source_branch ||
         schedule.target_branch ||
         null;
 
       const repoInfo = await githubService.getRepository(owner, repo);
-      const effectiveBranch = branch || repoInfo.default_branch;
+      const workflowBranch = repoInfo.default_branch;
 
       // Get existing file to retrieve SHA
-      const existingFile = await githubService.getFileContent(
+      let existingFile = await githubService.getFileContent(
         owner,
         repo,
         path,
-        effectiveBranch,
+        workflowBranch,
       );
+
+      // Backward compatibility: older deployments may have placed workflows
+      // on non-default branches.
+      let fileBranch = workflowBranch;
+      if (
+        !existingFile &&
+        executionBranch &&
+        executionBranch !== workflowBranch
+      ) {
+        existingFile = await githubService.getFileContent(
+          owner,
+          repo,
+          path,
+          executionBranch,
+        );
+        if (existingFile) {
+          fileBranch = executionBranch;
+        }
+      }
 
       if (!existingFile) {
         return {
@@ -127,7 +149,7 @@ class WorkflowService {
         repo,
         path,
         commitMessage,
-        effectiveBranch,
+        fileBranch,
         existingFile.sha,
       );
 
@@ -160,21 +182,34 @@ class WorkflowService {
       const owner = schedule.repo_owner;
       const repo = schedule.repo_name;
       const path = workflowConfig.filePath;
-      const branch =
+      const executionBranch =
         schedule.branch ||
         schedule.source_branch ||
         schedule.target_branch ||
         null;
 
       const repoInfo = await githubService.getRepository(owner, repo);
-      const effectiveBranch = branch || repoInfo.default_branch;
+      const workflowBranch = repoInfo.default_branch;
 
-      const existingFile = await githubService.getFileContent(
+      let existingFile = await githubService.getFileContent(
         owner,
         repo,
         path,
-        effectiveBranch,
+        workflowBranch,
       );
+
+      if (
+        !existingFile &&
+        executionBranch &&
+        executionBranch !== workflowBranch
+      ) {
+        existingFile = await githubService.getFileContent(
+          owner,
+          repo,
+          path,
+          executionBranch,
+        );
+      }
 
       return existingFile !== null;
     } catch (error) {
