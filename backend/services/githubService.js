@@ -21,6 +21,21 @@ class GitHubService {
     });
   }
 
+  resolveCommitIdentity(owner) {
+    const trimmedOwner = String(owner || "").trim();
+    if (!trimmedOwner) {
+      return {
+        name: this.botName,
+        email: this.botEmail,
+      };
+    }
+
+    return {
+      name: trimmedOwner,
+      email: `${trimmedOwner}@users.noreply.github.com`,
+    };
+  }
+
   /**
    * Fetch all repositories accessible by the authenticated user
    * Includes owned repos and repos where user has push access
@@ -180,16 +195,17 @@ class GitHubService {
     sha = null,
   ) {
     try {
+      const identity = this.resolveCommitIdentity(owner);
       const payload = {
         message,
         content: Buffer.from(content).toString("base64"),
         committer: {
-          name: this.botName,
-          email: this.botEmail,
+          name: identity.name,
+          email: identity.email,
         },
         author: {
-          name: this.botName,
-          email: this.botEmail,
+          name: identity.name,
+          email: identity.email,
         },
       };
 
@@ -243,16 +259,17 @@ class GitHubService {
    */
   async deleteFile(owner, repo, path, message, branch, sha) {
     try {
+      const identity = this.resolveCommitIdentity(owner);
       const data = {
         message,
         sha,
         committer: {
-          name: this.botName,
-          email: this.botEmail,
+          name: identity.name,
+          email: identity.email,
         },
         author: {
-          name: this.botName,
-          email: this.botEmail,
+          name: identity.name,
+          email: identity.email,
         },
       };
       if (branch) data.branch = branch;
