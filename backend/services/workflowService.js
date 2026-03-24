@@ -283,17 +283,30 @@ class WorkflowService {
       const runTimestamp = latestRun
         ? new Date(latestRun.created_at || latestRun.run_started_at || 0)
         : null;
-      const RUN_MATCH_LEEWAY_MS = 10 * 60 * 1000;
+
+      // Only consider a run relevant if it started AFTER the scheduled push_time.
+      // Using a small negative leeway (5 min before) to account for GitHub Actions
+      // scheduling the run slightly early, but NOT matching workflow file deployment
+      // commits that happen well before the scheduled time.
+      const RUN_MATCH_LEEWAY_MS = 5 * 60 * 1000;
       const isRelevantRun =
         runTimestamp &&
         runTimestamp.getTime() >= scheduledTime.getTime() - RUN_MATCH_LEEWAY_MS;
 
-      const resolvedRun = isRelevantRun ? latestRun : null;
+      // Additionally require the run to be a scheduled or workflow_dispatch event,
+      // not a push event (which is triggered by workflow file deployment).
+      const isScheduledOrManual =
+        !latestRun ||
+        latestRun.event === "schedule" ||
+        latestRun.event === "workflow_dispatch";
+
+      const resolvedRun =
+        isRelevantRun && isScheduledOrManual ? latestRun : null;
 
       if (!resolvedRun) {
-        // GitHub Actions scheduled runs can be delayed. Keep schedule pending
-        // for a wider grace window before flagging as missing.
-        const graceMs = 60 * 60 * 1000;
+        // GitHub Actions scheduled runs can be delayed by up to 15-30 minutes.
+        // Keep schedule as "scheduled" for a grace window before flagging as missing.
+        const graceMs = 90 * 60 * 1000; // 90 minutes grace for delayed cron runs
         if (scheduledTime.getTime() + graceMs > now.getTime()) {
           return {
             status: "scheduled",
