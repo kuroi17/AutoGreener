@@ -650,6 +650,19 @@ const Dashboard = () => {
     };
   };
 
+  const hasMinimumLeadTime = (pushDate, pushTime, dayOffset = 0) => {
+    const scheduledDate = new Date(`${pushDate}T${pushTime}:00`);
+
+    if (Number.isNaN(scheduledDate.getTime())) {
+      return false;
+    }
+
+    scheduledDate.setDate(scheduledDate.getDate() + dayOffset);
+    const minimumAllowed = Date.now() + MIN_SCHEDULE_LEAD_MINUTES * 60 * 1000;
+
+    return scheduledDate.getTime() >= minimumAllowed;
+  };
+
   const handleCreate = async (event) => {
     event.preventDefault();
 
@@ -660,6 +673,14 @@ const Dashboard = () => {
 
     if (!form.branch || !form.pushDate || !form.pushTime) {
       setBanner("error", "Branch, date, and time are required");
+      return;
+    }
+
+    if (!hasMinimumLeadTime(form.pushDate, form.pushTime)) {
+      setBanner(
+        "error",
+        `Pick a time at least ${MIN_SCHEDULE_LEAD_MINUTES} minutes from now`,
+      );
       return;
     }
 
@@ -684,6 +705,20 @@ const Dashboard = () => {
           getDailyPushTimes();
         if (dailyTimeError) {
           setBanner("error", dailyTimeError);
+          setSubmitting(false);
+          return;
+        }
+
+        if (
+          offsets.includes(0) &&
+          dailyTimes.some(
+            (pushTime) => !hasMinimumLeadTime(form.pushDate, pushTime),
+          )
+        ) {
+          setBanner(
+            "error",
+            `Today's streak times must be at least ${MIN_SCHEDULE_LEAD_MINUTES} minutes ahead`,
+          );
           setSubmitting(false);
           return;
         }
@@ -1147,6 +1182,11 @@ const Dashboard = () => {
                               value={form.pushTime}
                               onChange={(event) =>
                                 updateForm("pushTime", event.target.value)
+                              }
+                              min={
+                                form.pushDate === minDateText
+                                  ? minTimeTextForSelectedDate
+                                  : undefined
                               }
                               step="60"
                               className="w-full rounded-lg border border-lime-300 px-2 py-1.5 text-sm text-lime-900 outline-none"
