@@ -8,9 +8,7 @@ import { scheduleAPI } from "../services/api";
 import {
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
   CheckCircle2,
-  Clock3,
   Flame,
   Leaf,
   Loader2,
@@ -18,92 +16,21 @@ import {
   Upload,
   XCircle,
 } from "lucide-react";
-import CalendarPicker from "../components/CalendarPicker";
-import TimePickerModal from "../components/TimePickerModal";
-import DateTimeControls from "../components/DateTimeControls";
-import PushesCommitSection from "../components/PushesCommitSection";
-
-const INITIAL_FORM = {
-  branch: "",
-  pushDate: "",
-  pushTime: "09:00",
-  commitMessage: "Automated push by AutoGreener",
-  pushCount: "1",
-  streakMode: false,
-  streakEndDate: "",
-  streakTemplate: "daily",
-  pushPlanMode: "interval",
-  intervalHours: "6",
-  customTimes: ["09:00"],
-};
-
-const MAX_STREAK_DAYS = 120;
-const MAX_PUSHES_PER_DAY = 24;
-const CARDS_PER_PAGE = 4;
-const MIN_SCHEDULE_LEAD_MINUTES = 35;
-const QUICK_TIME_OPTIONS = [
-  "06:00",
-  "09:00",
-  "12:00",
-  "15:00",
-  "18:00",
-  "21:00",
-];
-
-const STREAK_TEMPLATES = [
-  {
-    id: "daily",
-    name: "Daily",
-    description: "Push every day in the selected range.",
-  },
-  {
-    id: "weekdays",
-    name: "Weekdays",
-    description: "Push Monday to Friday only.",
-  },
-  {
-    id: "alternating",
-    name: "Alternate Days",
-    description: "Push every other day for a natural rhythm.",
-  },
-  {
-    id: "mwf",
-    name: "Mon-Wed-Fri",
-    description: "Push three times weekly on M/W/F.",
-  },
-  {
-    id: "weekend",
-    name: "Weekend",
-    description: "Push only on Saturday and Sunday.",
-  },
-];
-
-const formatDateInput = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const formatTimeInput = (date) => {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-};
-
-const clampIntegerString = (value, minimum, maximum) => {
-  const digitsOnly = String(value || "").replace(/\D/g, "");
-  if (!digitsOnly) {
-    return String(minimum);
-  }
-
-  const bounded = Math.min(
-    Math.max(Number(digitsOnly) || minimum, minimum),
-    maximum,
-  );
-
-  return String(bounded);
-};
+import DateTimeControls from "../components/dashboard/DateTimeControls";
+import PushesCommitSection from "../components/dashboard/PushesCommitSection";
+import {
+  INITIAL_FORM,
+  MAX_STREAK_DAYS,
+  MAX_PUSHES_PER_DAY,
+  CARDS_PER_PAGE,
+  MIN_SCHEDULE_LEAD_MINUTES,
+  STREAK_TEMPLATES,
+} from "../components/dashboard/config";
+import {
+  formatDateInput,
+  formatTimeInput,
+  clampIntegerString,
+} from "../components/dashboard/utils";
 
 const Dashboard = () => {
   const [schedules, setSchedules] = useState([]);
@@ -127,8 +54,6 @@ const Dashboard = () => {
   const [schedulePage, setSchedulePage] = useState(0);
   const [clockNow, setClockNow] = useState(() => new Date());
   const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(true);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [workflowStatusById, setWorkflowStatusById] = useState({});
 
   useEffect(() => {
