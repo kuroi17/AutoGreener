@@ -36,6 +36,15 @@ const INITIAL_FORM = {
 const MAX_STREAK_DAYS = 120;
 const MAX_PUSHES_PER_DAY = 24;
 const CARDS_PER_PAGE = 4;
+const MIN_SCHEDULE_LEAD_MINUTES = 35;
+const QUICK_TIME_OPTIONS = [
+  "06:00",
+  "09:00",
+  "12:00",
+  "15:00",
+  "18:00",
+  "21:00",
+];
 
 const STREAK_TEMPLATES = [
   {
@@ -70,6 +79,12 @@ const formatDateInput = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+
+const formatTimeInput = (date) => {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
 };
 
 const clampIntegerString = (value, minimum, maximum) => {
@@ -302,7 +317,21 @@ const Dashboard = () => {
     };
   }, [schedules]);
 
-  const minDateText = useMemo(() => formatDateInput(clockNow), [clockNow]);
+  const earliestAllowedDateTime = useMemo(() => {
+    return new Date(clockNow.getTime() + MIN_SCHEDULE_LEAD_MINUTES * 60 * 1000);
+  }, [clockNow]);
+
+  const minDateText = useMemo(
+    () => formatDateInput(earliestAllowedDateTime),
+    [earliestAllowedDateTime],
+  );
+
+  const minTimeTextForSelectedDate = useMemo(() => {
+    if (!form.pushDate) return "00:00";
+    return form.pushDate === formatDateInput(earliestAllowedDateTime)
+      ? formatTimeInput(earliestAllowedDateTime)
+      : "00:00";
+  }, [form.pushDate, earliestAllowedDateTime]);
 
   const pushesPerSlot = useMemo(() => {
     const parsed = Number(form.pushCount);
@@ -332,6 +361,24 @@ const Dashboard = () => {
       updateForm("pushDate", minDateText);
     }
   }, [form.pushDate, minDateText]);
+
+  useEffect(() => {
+    if (!form.pushDate || !form.pushTime) {
+      return;
+    }
+
+    if (
+      form.pushDate === formatDateInput(earliestAllowedDateTime) &&
+      form.pushTime < minTimeTextForSelectedDate
+    ) {
+      updateForm("pushTime", minTimeTextForSelectedDate);
+    }
+  }, [
+    form.pushDate,
+    form.pushTime,
+    earliestAllowedDateTime,
+    minTimeTextForSelectedDate,
+  ]);
 
   const resolveTotalDays = () => {
     if (!form.pushDate || !form.streakEndDate) {
@@ -882,19 +929,19 @@ const Dashboard = () => {
                     Loading branches...
                   </div>
                 ) : branches.length > 0 ? (
-                  <input
+                  <select
                     value={form.branch}
                     onChange={(event) =>
                       updateForm("branch", event.target.value)
                     }
-                    className="w-full rounded-lg border border-emerald-200 px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
+                    className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
                   >
                     {branches.map((branch) => (
                       <option key={branch.name} value={branch.name}>
                         {branch.name}
                       </option>
                     ))}
-                  </input>
+                  </select>
                 ) : (
                   <input
                     value={form.branch}
@@ -907,37 +954,74 @@ const Dashboard = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
-                    <CalendarDays className="h-4 w-4 text-emerald-600" />
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    value={form.pushDate}
-                    onChange={(event) =>
-                      updateForm("pushDate", event.target.value)
-                    }
-                    min={minDateText}
-                    className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                  />
+              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-3.5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
+                      <CalendarDays className="h-4 w-4 text-emerald-600" />
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={form.pushDate}
+                      onChange={(event) =>
+                        updateForm("pushDate", event.target.value)
+                      }
+                      min={minDateText}
+                      className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
+                      <Clock3 className="h-4 w-4 text-emerald-600" />
+                      Time
+                    </label>
+                    <input
+                      type="time"
+                      value={form.pushTime}
+                      onChange={(event) =>
+                        updateForm("pushTime", event.target.value)
+                      }
+                      min={
+                        form.pushDate === minDateText
+                          ? minTimeTextForSelectedDate
+                          : undefined
+                      }
+                      step="60"
+                      className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
-                    <Clock3 className="h-4 w-4 text-emerald-600" />
-                    Time
-                  </label>
-                  <input
-                    type="time"
-                    value={form.pushTime}
-                    onChange={(event) =>
-                      updateForm("pushTime", event.target.value)
-                    }
-                    step="60"
-                    className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                  />
+
+                <div className="mt-3">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-emerald-700">
+                    Quick time picks
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {QUICK_TIME_OPTIONS.map((time) => {
+                      const active = form.pushTime === time;
+                      return (
+                        <button
+                          key={time}
+                          type="button"
+                          onClick={() => updateForm("pushTime", time)}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                            active
+                              ? "border-emerald-500 bg-emerald-600 text-white"
+                              : "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50"
+                          }`}
+                        >
+                          {time}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+
+                <p className="mt-3 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-xs text-emerald-700">
+                  Earliest allowed schedule is{" "}
+                  {formatDateTime(earliestAllowedDateTime)}.
+                </p>
               </div>
 
               <div>
