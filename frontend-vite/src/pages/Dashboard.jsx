@@ -882,7 +882,7 @@ const Dashboard = () => {
                     Loading branches...
                   </div>
                 ) : branches.length > 0 ? (
-                  <select
+                  <input
                     value={form.branch}
                     onChange={(event) =>
                       updateForm("branch", event.target.value)
@@ -894,7 +894,7 @@ const Dashboard = () => {
                         {branch.name}
                       </option>
                     ))}
-                  </select>
+                  </input>
                 ) : (
                   <input
                     value={form.branch}
@@ -945,9 +945,9 @@ const Dashboard = () => {
                   Pushes at selected schedule time
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  max="20"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={form.pushCount}
                   onChange={(event) => {
                     const incoming = event.target.value;
@@ -1073,9 +1073,9 @@ const Dashboard = () => {
                               Every X hours
                             </label>
                             <input
-                              type="number"
-                              min="1"
-                              max="23"
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={form.intervalHours}
                               onChange={(event) => {
                                 const incoming = event.target.value;
