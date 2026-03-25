@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import CalendarPicker from "../components/CalendarPicker";
 import TimePickerModal from "../components/TimePickerModal";
+import DateTimeControls from "../components/DateTimeControls";
+import PushesCommitSection from "../components/PushesCommitSection";
 
 const INITIAL_FORM = {
   branch: "",
@@ -995,139 +997,23 @@ const Dashboard = () => {
 
               <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-3.5">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="relative">
-                    <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
-                      <CalendarDays className="h-4 w-4 text-emerald-600" />
-                      Date
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="date"
-                        value={form.pushDate}
-                        onChange={(event) =>
-                          updateForm("pushDate", event.target.value)
-                        }
-                        min={minDateText}
-                        className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCalendar((s) => !s)}
-                        className="rounded-lg border border-emerald-200 px-3 py-2 text-sm text-emerald-700"
-                      >
-                        Pick
-                      </button>
-                    </div>
-                    {showCalendar && (
-                      <div className="mt-2">
-                        <CalendarPicker
-                          selectedDate={form.pushDate}
-                          onSelect={(d) => {
-                            updateForm("pushDate", d);
-                            setShowCalendar(false);
-                          }}
-                          minDate={earliestAllowedDateTime}
-                        />
-                      </div>
-                    )}
-                    {form.pushDate &&
-                      form.pushTime &&
-                      !hasMinimumLeadTime(form.pushDate, form.pushTime) && (
-                        <p className="mt-1 text-xs text-red-600">
-                          Pick a time at least {MIN_SCHEDULE_LEAD_MINUTES}{" "}
-                          minutes from now.
-                        </p>
-                      )}
-                  </div>
-                  <div>
-                    <label className="mb-1 flex items-center gap-1 text-sm font-medium text-emerald-900">
-                      <Clock3 className="h-4 w-4 text-emerald-600" />
-                      Time
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="time"
-                        value={form.pushTime}
-                        onChange={(event) =>
-                          updateForm("pushTime", event.target.value)
-                        }
-                        min={
-                          form.pushDate === minDateText
-                            ? minTimeTextForSelectedDate
-                            : undefined
-                        }
-                        step="60"
-                        className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowTimePicker(true)}
-                        className="rounded-lg border border-emerald-200 px-3 py-2 text-sm text-emerald-700"
-                      >
-                        Pick
-                      </button>
-                    </div>
-                    {form.pushDate &&
-                      form.pushTime &&
-                      !hasMinimumLeadTime(form.pushDate, form.pushTime) && (
-                        <p className="mt-1 text-xs text-red-600">
-                          Pick a time at least {MIN_SCHEDULE_LEAD_MINUTES}{" "}
-                          minutes from now.
-                        </p>
-                      )}
-                    <TimePickerModal
-                      isOpen={showTimePicker}
-                      initialTime={form.pushTime}
-                      onClose={() => setShowTimePicker(false)}
-                      onConfirm={(t) => {
-                        updateForm("pushTime", t);
-                      }}
-                    />
-                  </div>
+                  <DateTimeControls
+                    form={form}
+                    updateForm={updateForm}
+                    earliestAllowedDateTime={earliestAllowedDateTime}
+                    minDateText={minDateText}
+                    minTimeTextForSelectedDate={minTimeTextForSelectedDate}
+                    hasMinimumLeadTime={hasMinimumLeadTime}
+                    MIN_SCHEDULE_LEAD_MINUTES={MIN_SCHEDULE_LEAD_MINUTES}
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-emerald-900">
-                  Pushes at selected schedule time
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={form.pushCount}
-                  onChange={(event) => {
-                    const incoming = event.target.value;
-                    if (/^\d*$/.test(incoming)) {
-                      updateForm("pushCount", incoming);
-                    }
-                  }}
-                  onBlur={() => {
-                    updateForm(
-                      "pushCount",
-                      clampIntegerString(form.pushCount, 1, 20),
-                    );
-                  }}
-                  className="w-full rounded-lg border border-emerald-200 px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                />
-                <p className="mt-1 text-xs text-emerald-700">
-                  This applies to normal schedule and each streak schedule slot.
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-emerald-900">
-                  Commit message (optional)
-                </label>
-                <input
-                  value={form.commitMessage}
-                  onChange={(event) =>
-                    updateForm("commitMessage", event.target.value)
-                  }
-                  placeholder="Automated push by AutoGreener"
-                  className="w-full rounded-lg border border-emerald-200 px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
-                />
-              </div>
+              <PushesCommitSection
+                form={form}
+                updateForm={updateForm}
+                clampIntegerString={clampIntegerString}
+              />
 
               <div className="rounded-xl border border-lime-200 bg-lime-50 p-3">
                 <p className="flex items-center gap-2 text-sm font-semibold text-lime-900">
