@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import CalendarPicker from "./CalendarPicker";
 import TimePickerModal from "./TimePickerModal";
 import { CalendarDays, Clock3 } from "lucide-react";
@@ -19,6 +19,69 @@ export default function DateTimeControls({
     form.pushTime &&
     !hasMinimumLeadTime(form.pushDate, form.pushTime);
 
+  const calendarRef = useRef(null);
+  const timeRef = useRef(null);
+
+  const toggleCalendar = () => {
+    setShowCalendar((prev) => {
+      const next = !prev;
+      if (next) setShowTimePicker(false);
+      return next;
+    });
+  };
+
+  const toggleTime = () => {
+    setShowTimePicker((prev) => {
+      const next = !prev;
+      if (next) setShowCalendar(false);
+      return next;
+    });
+  };
+
+  // Close calendar on outside click or ESC
+  useEffect(() => {
+    if (!showCalendar) return undefined;
+
+    const onDown = (e) => {
+      if (calendarRef.current && !calendarRef.current.contains(e.target)) {
+        setShowCalendar(false);
+      }
+    };
+
+    const onKey = (e) => {
+      if (e.key === "Escape") setShowCalendar(false);
+    };
+
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [showCalendar]);
+
+  // Close time picker on outside click or ESC
+  useEffect(() => {
+    if (!showTimePicker) return undefined;
+
+    const onDown = (e) => {
+      if (timeRef.current && !timeRef.current.contains(e.target)) {
+        setShowTimePicker(false);
+      }
+    };
+
+    const onKey = (e) => {
+      if (e.key === "Escape") setShowTimePicker(false);
+    };
+
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [showTimePicker]);
+
   return (
     <div className="relative">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -33,11 +96,11 @@ export default function DateTimeControls({
               value={form.pushDate}
               onChange={(e) => updateForm("pushDate", e.target.value)}
               readOnly
-              onClick={() => setShowCalendar(true)}
+              onClick={toggleCalendar}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setShowCalendar(true);
+                  toggleCalendar();
                 }
               }}
               min={minDateText}
@@ -45,7 +108,7 @@ export default function DateTimeControls({
             />
             <button
               type="button"
-              onClick={() => setShowCalendar((s) => !s)}
+              onClick={toggleCalendar}
               className="whitespace-nowrap rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-100"
             >
               Pick
@@ -53,7 +116,14 @@ export default function DateTimeControls({
           </div>
 
           {showCalendar && (
-            <div className="absolute left-0 top-full z-30 mt-2">
+            <div
+              ref={calendarRef}
+              className="absolute left-0 top-full z-30 mt-2 transform-gpu transition-all duration-200 origin-top"
+              style={{
+                opacity: showCalendar ? 1 : 0,
+                transform: showCalendar ? "scale(1)" : "scale(0.96)",
+              }}
+            >
               <CalendarPicker
                 selectedDate={form.pushDate}
                 onSelect={(d) => {
@@ -77,11 +147,11 @@ export default function DateTimeControls({
               value={form.pushTime}
               onChange={(e) => updateForm("pushTime", e.target.value)}
               readOnly
-              onClick={() => setShowTimePicker(true)}
+              onClick={toggleTime}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setShowTimePicker(true);
+                  toggleTime();
                 }
               }}
               min={
@@ -94,7 +164,7 @@ export default function DateTimeControls({
             />
             <button
               type="button"
-              onClick={() => setShowTimePicker(true)}
+              onClick={toggleTime}
               className="whitespace-nowrap rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-100"
             >
               Pick
@@ -102,7 +172,14 @@ export default function DateTimeControls({
           </div>
 
           {showTimePicker && (
-            <div className="absolute left-0 top-full z-30 mt-2">
+            <div
+              ref={timeRef}
+              className="absolute left-0 top-full z-30 mt-2 transform-gpu transition-all duration-200 origin-top-right"
+              style={{
+                opacity: showTimePicker ? 1 : 0,
+                transform: showTimePicker ? "scale(1)" : "scale(0.96)",
+              }}
+            >
               <TimePickerModal
                 isOpen={showTimePicker}
                 initialTime={form.pushTime}
