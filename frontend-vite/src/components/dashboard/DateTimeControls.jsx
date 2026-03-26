@@ -32,6 +32,14 @@ export default function DateTimeControls({
               type="date"
               value={form.pushDate}
               onChange={(e) => updateForm("pushDate", e.target.value)}
+              readOnly
+              onClick={() => setShowCalendar(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setShowCalendar(true);
+                }
+              }}
               min={minDateText}
               className="min-w-0 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-950 outline-none transition-colors focus:border-emerald-500"
             />
@@ -68,6 +76,14 @@ export default function DateTimeControls({
               type="time"
               value={form.pushTime}
               onChange={(e) => updateForm("pushTime", e.target.value)}
+              readOnly
+              onClick={() => setShowTimePicker(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setShowTimePicker(true);
+                }
+              }}
               min={
                 form.pushDate === minDateText
                   ? minTimeTextForSelectedDate

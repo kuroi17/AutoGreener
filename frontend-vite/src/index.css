@@ -27,3 +27,15 @@ body {
     #f7fee7;
   color: #052e16;
 }
+
+/* Hide native date/time picker indicators to avoid duplicate dropdowns.
+   Keep inputs accessible: inputs remain focusable and custom pickers open on click. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+/* Firefox: remove inner spin/button appearance for time inputs */
+input[type="time"] {
+  -moz-appearance: textfield;
+}
