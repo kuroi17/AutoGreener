@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 export default function TimePickerModal({
   isOpen,
   initialTime,
+  selectedDate,
+  minDateText,
+  minTimeTextForSelectedDate,
   onClose,
   onConfirm,
 }) {
@@ -18,15 +21,35 @@ export default function TimePickerModal({
   const [minute, setMinute] = useState(0);
   const [ampm, setAmpm] = useState("AM");
 
+  const hourOptions = Array.from({ length: 12 }, (_, i) => i + 1);
+  const minuteOptions = Array.from({ length: 60 }, (_, i) => i);
+
+  const quickTimes = ["06:00", "09:00", "12:00", "15:00", "18:00", "21:00"];
+
+  const minQuickPickTime =
+    selectedDate && selectedDate === minDateText
+      ? minTimeTextForSelectedDate || "00:00"
+      : "00:00";
+
+  const contextQuickTimes = useMemo(() => {
+    return quickTimes.filter((time24) => time24 >= minQuickPickTime);
+  }, [minQuickPickTime]);
+
+  const formatLabel = (time24) => {
+    const [hhText, mmText] = time24.split(":");
+    const hh = Number(hhText);
+    const mm = Number(mmText);
+    const labelAmPm = hh >= 12 ? "PM" : "AM";
+    const hour12 = hh % 12 === 0 ? 12 : hh % 12;
+    return `${hour12}:${String(mm).padStart(2, "0")} ${labelAmPm}`;
+  };
+
   useEffect(() => {
     const parsed = parseInitial(initialTime);
     setHour(parsed.hour);
     setMinute(parsed.minute);
     setAmpm(parsed.ampm);
   }, [initialTime, isOpen]);
-
-  const inc = (val, min, max) => (val === max ? min : val + 1);
-  const dec = (val, min, max) => (val === min ? max : val - 1);
 
   const confirm = () => {
     let hh = hour % 12;
@@ -40,77 +63,113 @@ export default function TimePickerModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-lg w-80 p-4">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-medium">Select time</h3>
-          <button className="text-sm text-gray-500" onClick={onClose}>
-            Close
-          </button>
+    <div className="w-[320px] rounded-2xl border border-emerald-200 bg-white p-4 shadow-xl">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-base font-semibold text-emerald-950">Pick time</h3>
+        <button
+          type="button"
+          className="rounded-md px-2 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1fr)] items-end gap-2">
+          <label className="text-xs font-medium text-emerald-800">
+            Hour
+            <select
+              value={hour}
+              onChange={(event) => setHour(Number(event.target.value))}
+              className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-2 py-2 text-sm text-emerald-950 outline-none focus:border-emerald-500"
+            >
+              {hourOptions.map((value) => (
+                <option key={value} value={value}>
+                  {String(value).padStart(2, "0")}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <span className="pb-2 text-lg font-semibold text-emerald-700">:</span>
+
+          <label className="text-xs font-medium text-emerald-800">
+            Minute
+            <select
+              value={minute}
+              onChange={(event) => setMinute(Number(event.target.value))}
+              className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-2 py-2 text-sm text-emerald-950 outline-none focus:border-emerald-500"
+            >
+              {minuteOptions.map((value) => (
+                <option key={value} value={value}>
+                  {String(value).padStart(2, "0")}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="text-xs font-medium text-emerald-800">
+            Period
+            <select
+              value={ampm}
+              onChange={(event) => setAmpm(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-2 py-2 text-sm text-emerald-950 outline-none focus:border-emerald-500"
+            >
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </label>
         </div>
 
-        <div className="flex items-center justify-center gap-4">
-          <div className="flex flex-col items-center">
-            <button
-              className="px-2 py-1 bg-gray-100 rounded"
-              onClick={() => setHour((h) => inc(h, 1, 12))}
-            >
-              ▲
-            </button>
-            <div className="text-2xl font-semibold my-2">
-              {String(hour).padStart(2, "0")}
-            </div>
-            <button
-              className="px-2 py-1 bg-gray-100 rounded"
-              onClick={() => setHour((h) => dec(h, 1, 12))}
-            >
-              ▼
-            </button>
+        <p className="mt-2 text-xs text-emerald-700">
+          Selected: {String(hour).padStart(2, "0")}:
+          {String(minute).padStart(2, "0")} {ampm}
+        </p>
+      </div>
+
+      <div className="mt-3">
+        <p className="mb-2 text-xs font-medium text-emerald-800">Quick picks</p>
+        {contextQuickTimes.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2">
+            {contextQuickTimes.map((time24) => (
+              <button
+                key={time24}
+                type="button"
+                onClick={() => {
+                  const parsed = parseInitial(time24);
+                  setHour(parsed.hour);
+                  setMinute(parsed.minute);
+                  setAmpm(parsed.ampm);
+                }}
+                className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs font-medium text-emerald-800 transition-colors hover:bg-emerald-50"
+              >
+                {formatLabel(time24)}
+              </button>
+            ))}
           </div>
+        ) : (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            No quick picks available for this day. Choose a custom time above.
+          </p>
+        )}
+      </div>
 
-          <div className="text-2xl">:</div>
-
-          <div className="flex flex-col items-center">
-            <button
-              className="px-2 py-1 bg-gray-100 rounded"
-              onClick={() => setMinute((m) => inc(m, 0, 59))}
-            >
-              ▲
-            </button>
-            <div className="text-2xl font-semibold my-2">
-              {String(minute).padStart(2, "0")}
-            </div>
-            <button
-              className="px-2 py-1 bg-gray-100 rounded"
-              onClick={() => setMinute((m) => dec(m, 0, 59))}
-            >
-              ▼
-            </button>
-          </div>
-
-          <div className="flex flex-col items-center">
-            <button
-              className="px-3 py-1 bg-gray-100 rounded"
-              onClick={() => setAmpm((a) => (a === "AM" ? "PM" : "AM"))}
-            >
-              Toggle
-            </button>
-            <div className="text-lg font-medium my-2">{ampm}</div>
-            <div style={{ height: 32 }} />
-          </div>
-        </div>
-
-        <div className="mt-4 flex justify-end gap-2">
-          <button className="px-3 py-1 rounded bg-gray-100" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="px-3 py-1 rounded bg-blue-600 text-white"
-            onClick={confirm}
-          >
-            Set time
-          </button>
-        </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <button
+          type="button"
+          className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-50"
+          onClick={onClose}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+          onClick={confirm}
+        >
+          Set time
+        </button>
       </div>
     </div>
   );

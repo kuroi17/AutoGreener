@@ -84,17 +84,15 @@ export default function CreateSchedulePanel({
         </div>
 
         <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-3.5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <DateTimeControls
-              form={form}
-              updateForm={updateForm}
-              earliestAllowedDateTime={earliestAllowedDateTime}
-              minDateText={minDateText}
-              minTimeTextForSelectedDate={minTimeTextForSelectedDate}
-              hasMinimumLeadTime={hasMinimumLeadTime}
-              MIN_SCHEDULE_LEAD_MINUTES={MIN_SCHEDULE_LEAD_MINUTES}
-            />
-          </div>
+          <DateTimeControls
+            form={form}
+            updateForm={updateForm}
+            earliestAllowedDateTime={earliestAllowedDateTime}
+            minDateText={minDateText}
+            minTimeTextForSelectedDate={minTimeTextForSelectedDate}
+            hasMinimumLeadTime={hasMinimumLeadTime}
+            MIN_SCHEDULE_LEAD_MINUTES={MIN_SCHEDULE_LEAD_MINUTES}
+          />
         </div>
 
         <PushesCommitSection
