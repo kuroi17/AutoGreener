@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/React-18-blue?logo=react" />
-  <img src="https://img.shields.io/badge/Vite-4.0-purple?logo=vite" />
-  <img src="https://img.shields.io/badge/Express-4.18-green?logo=express" />
-  <img src="https://img.shields.io/badge/Supabase-DB-3ECF8E?logo=supabase" />
+  <img src="https://img.shields.io/badge/React-19.x-blue?logo=react" />
+  <img src="https://img.shields.io/badge/Vite-7.3-purple?logo=vite" />
+  <img src="https://img.shields.io/badge/Express-5.x-green?logo=express" />
+  <img src="https://img.shields.io/badge/Supabase-%40supabase%2Fsupabase--js-orange?logo=supabase" />
   <img src="https://img.shields.io/badge/GitHub%20OAuth-Enabled-black?logo=github" />
   <img src="https://img.shields.io/badge/License-MIT-yellow" />
 </p>
@@ -35,12 +35,12 @@ AutoGreener is a lightweight, open-source platform that helps you maintain your 
 - **Killer Feature: Streak Builder**  
   Create multiple day-by-day schedules in one click! Enable “Streak Mode” to quickly automate a series of daily pushes and keep your GitHub streak alive with minimal effort.
 
-- **(Planned) Date Range Streaks**  
-  Select a start and end date, and AutoGreener will automatically schedule daily pushes for the entire range. Perfect for vacations, busy weeks, or planning ahead—just set it and forget it!
+-- **Date Range Streaks**  
+ Select a start and end date, and AutoGreener will automatically schedule daily pushes for the entire range (available via the Streak Builder).
 
 - **GitHub OAuth Integration**: Securely connect your GitHub account
 - **Add Repositories**: Register any accessible GitHub repo for scheduling
-- **Branch-to-Branch Merge Scheduling**: Schedule merges from a source branch to a target branch
+  -- **Branch-based scheduling**: Schedule pushes that use a source/execution branch (mapped to `source_branch` in the DB)
 - **Date & Time Scheduling**: Pick exact UTC date and time for automatic pushes
 - **Dashboard View**: Monitor all scheduled pushes and their statuses
 - **Automatic Execution**: Pushes execute automatically at scheduled times using the GitHub API
@@ -81,7 +81,7 @@ AutoGreener/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/AutoGreener.git
+git clone https://github.com/kuroi17/AutoGreener.git
 cd AutoGreener
 ```
 
@@ -147,14 +147,6 @@ Frontend runs at http://localhost:5173
 - Modern, responsive frontend (React + Vite + Tailwind)
 - Multi-repo and multi-branch support
 
-### 🚧 In Progress / Next
-
-- Merge preview/diff before scheduling
-- Email/in-app notifications
-- Approval workflow for merges
-- Comprehensive push/merge history log
-- Conflict detection before scheduling
-
 ### 🔧 Recent Backend & Deployment Notes
 
 - OAuth scope: GitHub login now requests the `workflow` scope (in addition to `repo`) — users must re-authenticate after backend redeploy to allow workflow writes.
@@ -166,11 +158,11 @@ If you want, I can add a small debug endpoint to report the current OAuth token 
 
 ## 🎨 UI Preview & Features
 
-- **Modern Gradient Design** - Blue to indigo color scheme
+- **Modern Gradient Design** - Yellow Green color scheme
 - **Responsive Layout** - Desktop and mobile friendly
-- **Interactive Repo Cards** - Expand for merge details, errors, and logs
+- **Interactive Repo Cards** - Expand for push details, errors, and logs
 - **Real-time Notifications** - Success, error, warning, info
-- **Statistics Dashboard** - Scheduled, completed, failed merges
+- **Statistics Dashboard** - Scheduled, completed, failed pushes
 
 ## 🔧 Development Workflow
 
@@ -203,14 +195,14 @@ If you want, I can add a small debug endpoint to report the current OAuth token 
   "repo_name": "your-repo",
   "source_branch": "feature-branch",
   "target_branch": "main",
-  "commit_message": "Scheduled merge via AutoGreener",
+  "commit_message": "Scheduled push via AutoGreener",
   "push_time": "2026-03-11T14:30:00Z"
 }
 ```
 
 ### Response fields
 
-- `error_message`: error details if merge fails
+- `error_message`: error details if a scheduled push or workflow run fails
 
 ---
 
@@ -234,10 +226,10 @@ Built with ❤️ by **kuroi17** and contributors
 
 ## 🎯 Next Steps
 
-1. Merge preview/diff before scheduling
+1. Merge/preview diff before scheduling (optional UX improvement)
 2. Email/in-app notifications
-3. Approval workflow for merges
-4. Comprehensive push/merge history log
+3. Approval workflow for scheduled pushes
+4. Comprehensive push/workflow history log
 5. Conflict detection before scheduling
 6. Branch protection rule integration
 
