@@ -5,7 +5,7 @@
 <h1 align="center">AutoGreener – Lightweight Contribution Scheduler</h1>
 <p align="center"><b>Automate your GitHub streaks with scheduled green squares.</b></p>
 <p align="center">
-  A simple, privacy-friendly tool to schedule GitHub pushes and keep your contribution graph green – no bloat, no bots, just your own workflow.
+  A simple,lightweight tool to schedule GitHub pushes and keep your contribution graph green!
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@ AutoGreener is a lightweight, open-source platform that helps you maintain your 
 - **Killer Feature: Streak Builder**  
   Create multiple day-by-day schedules in one click! Enable “Streak Mode” to quickly automate a series of daily pushes and keep your GitHub streak alive with minimal effort.
 
--- **Date Range Streaks**  
+- **Date Range Streaks**  
  Select a start and end date, and AutoGreener will automatically schedule daily pushes for the entire range (available via the Streak Builder).
 
 - **GitHub OAuth Integration**: Securely connect your GitHub account
@@ -154,15 +154,13 @@ Frontend runs at http://localhost:5173
 - DB compatibility: backend maps `branch` → `source_branch` for compatibility with the existing `schedules` schema; optionally add a `branch` column via Supabase SQL if you want parity.
 - Workflow creation: service validates repo access, chooses an effective branch (prefers schedule branch, falls back to repo default), and creates/updates the workflow file. Errors are logged with GitHub response bodies for easier debugging.
 
-If you want, I can add a small debug endpoint to report the current OAuth token scopes so you can confirm `workflow` is present after re-login.
-
 ## 🎨 UI Preview & Features
 
 - **Modern Gradient Design** - Yellow Green color scheme
 - **Responsive Layout** - Desktop and mobile friendly
 - **Interactive Repo Cards** - Expand for push details, errors, and logs
 - **Real-time Notifications** - Success, error, warning, info
-- **Statistics Dashboard** - Scheduled, completed, failed pushes
+- **Visual Dashboard** - Scheduled, completed, failed pushes 
 
 ## 🔧 Development Workflow
 
@@ -200,12 +198,6 @@ If you want, I can add a small debug endpoint to report the current OAuth token 
 }
 ```
 
-### Response fields
-
-- `error_message`: error details if a scheduled push or workflow run fails
-
----
-
 ---
 
 ## 🤝 Contributing
@@ -222,17 +214,7 @@ This project is open source and available under the MIT License.
 
 ## 👨‍💻 Author
 
-Built with ❤️ by **kuroi17** and contributors
+Built with ❤️ by **kuroi17** and GenAI Buddies
 
-## 🎯 Next Steps
-
-1. Merge/preview diff before scheduling (optional UX improvement)
-2. Email/in-app notifications
-3. Approval workflow for scheduled pushes
-4. Comprehensive push/workflow history log
-5. Conflict detection before scheduling
-6. Branch protection rule integration
-
----
 
 **Happy Scheduling & Merging! 🚀**
