@@ -128,33 +128,6 @@ export default function TimePickerModal({
         </p>
       </div>
 
-      <div className="mt-3">
-        <p className="mb-2 text-xs font-medium text-emerald-800">Quick picks</p>
-        {contextQuickTimes.length > 0 ? (
-          <div className="grid grid-cols-3 gap-2">
-            {contextQuickTimes.map((time24) => (
-              <button
-                key={time24}
-                type="button"
-                onClick={() => {
-                  const parsed = parseInitial(time24);
-                  setHour(parsed.hour);
-                  setMinute(parsed.minute);
-                  setAmpm(parsed.ampm);
-                }}
-                className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs font-medium text-emerald-800 transition-colors hover:bg-emerald-50"
-              >
-                {formatLabel(time24)}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            No quick picks available for this day. Choose a custom time above.
-          </p>
-        )}
-      </div>
-
       <div className="mt-4 flex justify-end gap-2">
         <button
           type="button"

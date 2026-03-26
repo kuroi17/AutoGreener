@@ -109,15 +109,6 @@ export default function CalendarPicker({ selectedDate, onSelect, minDate }) {
           );
         })}
       </div>
-      <div className="mt-3 flex justify-between text-xs text-gray-500">
-        <button
-          onClick={() => onSelect(toISODate(today))}
-          className="px-2 py-1 rounded hover:bg-gray-100"
-        >
-          Today
-        </button>
-        <div />
-      </div>
     </div>
   );
 }
