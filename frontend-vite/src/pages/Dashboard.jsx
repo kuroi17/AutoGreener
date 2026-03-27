@@ -18,7 +18,7 @@ import {
 } from "../components/dashboard/config";
 import {
   formatDateInput,
-  formatTimeInput,
+  formatTimeInputCeil,
   clampIntegerString,
 } from "../components/dashboard/utils";
 import {
@@ -254,7 +254,7 @@ const Dashboard = () => {
   const minTimeTextForSelectedDate = useMemo(() => {
     if (!form.pushDate) return "00:00";
     return form.pushDate === formatDateInput(earliestAllowedDateTime)
-      ? formatTimeInput(earliestAllowedDateTime)
+      ? formatTimeInputCeil(earliestAllowedDateTime)
       : "00:00";
   }, [form.pushDate, earliestAllowedDateTime]);
 

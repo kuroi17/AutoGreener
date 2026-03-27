@@ -11,6 +11,19 @@ export const formatTimeInput = (date) => {
   return `${hours}:${minutes}`;
 };
 
+export const formatTimeInputCeil = (date) => {
+  const rounded = new Date(date);
+
+  if (
+    rounded.getSeconds() > 0 ||
+    rounded.getMilliseconds() > 0
+  ) {
+    rounded.setMinutes(rounded.getMinutes() + 1, 0, 0);
+  }
+
+  return formatTimeInput(rounded);
+};
+
 export const clampIntegerString = (value, minimum, maximum) => {
   const digitsOnly = String(value || "").replace(/\D/g, "");
   if (!digitsOnly) {
