@@ -186,11 +186,6 @@ export default function TimePickerModal({
           <span className="text-3xl font-bold tracking-tight text-emerald-950">
             {formatLabel(selectedTime24)}
           </span>
-          {selectedDate === minDateText && (
-            <span className="mb-1 rounded-full bg-white px-2 py-1 text-[11px] font-medium text-emerald-700">
-              Earliest: {formatLabel(minSelectableTime)}
-            </span>
-          )}
         </div>
 
         {selectedDate === minDateText && (
