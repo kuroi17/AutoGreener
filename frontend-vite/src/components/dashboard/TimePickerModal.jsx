@@ -162,7 +162,9 @@ export default function TimePickerModal({
     <div className="w-[340px] rounded-2xl border border-emerald-200 bg-white p-4 shadow-xl">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold text-emerald-950">Pick time</h3>
+          <h3 className="text-base font-semibold text-emerald-950">
+            Pick time
+          </h3>
           <p className="text-xs text-emerald-700">
             Cleaner scheduling with fewer clicks.
           </p>
@@ -201,34 +203,6 @@ export default function TimePickerModal({
           </button>
         )}
       </div>
-
-      {contextQuickTimes.length > 0 && (
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-emerald-700">
-            Quick picks
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            {contextQuickTimes.map((time24) => {
-              const isActive = selectedTime24 === time24;
-
-              return (
-                <button
-                  key={time24}
-                  type="button"
-                  onClick={() => applyTime(time24)}
-                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "border-emerald-600 bg-emerald-600 text-white"
-                      : "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50"
-                  }`}
-                >
-                  {formatLabel(time24)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="mt-4 rounded-xl border border-emerald-100 p-3">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-emerald-700">
@@ -282,7 +256,8 @@ export default function TimePickerModal({
         </div>
 
         <p className="mt-3 text-xs text-emerald-700">
-          Minutes use 5-minute steps so the picker stays short and easier to use.
+          Minutes use 5-minute steps so the picker stays short and easier to
+          use.
         </p>
 
         {isBelowMinimum && (
