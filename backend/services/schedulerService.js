@@ -4,6 +4,12 @@ const WorkflowService = require("./workflowService");
 
 // Store active jobs in memory
 const activeJobs = new Map();
+const RECOVERABLE_STATUSES = new Set(["scheduled", "active"]);
+const MISSED_DISPATCH_GRACE_MINUTES = Math.max(
+  Number(process.env.MISSED_DISPATCH_GRACE_MINUTES) || 180,
+  15,
+);
+const MISSED_DISPATCH_GRACE_MS = MISSED_DISPATCH_GRACE_MINUTES * 60 * 1000;
 
 /**
  * Normalize schedule shape for downstream workflow calls.
@@ -94,6 +100,33 @@ const executeWorkflowDispatch = async (scheduleData) => {
   }
 };
 
+const shouldRecoverMissedDispatch = (scheduleData, nowMs) => {
+  const pushDate = new Date(scheduleData.push_time);
+
+  if (Number.isNaN(pushDate.getTime())) {
+    return { recover: false, reason: "invalid_time" };
+  }
+
+  const ageMs = nowMs - pushDate.getTime();
+
+  if (ageMs < 0) {
+    return { recover: false, reason: "future" };
+  }
+
+  if (!RECOVERABLE_STATUSES.has(scheduleData.status)) {
+    return { recover: false, reason: "status_not_recoverable" };
+  }
+
+  if (ageMs > MISSED_DISPATCH_GRACE_MS) {
+    return { recover: false, reason: "too_old" };
+  }
+
+  return {
+    recover: true,
+    ageMinutes: Math.floor(ageMs / (60 * 1000)),
+  };
+};
+
 /**
  * Schedule an exact-time workflow dispatch for a specific schedule.
  */
@@ -151,12 +184,39 @@ const loadSchedules = async () => {
 
     console.log(`   Found ${data.length} schedules to evaluate`);
 
-    data.forEach((scheduleData) => {
+    const nowMs = Date.now();
+
+    for (const scheduleData of data) {
       if (scheduleData.workflow_deployed === false) {
-        return;
+        continue;
       }
-      scheduleJob(scheduleData);
-    });
+
+      const recoveryDecision = shouldRecoverMissedDispatch(scheduleData, nowMs);
+
+      if (recoveryDecision.recover) {
+        console.log(
+          `🛠️ Recovering missed schedule ${scheduleData.id} (${recoveryDecision.ageMinutes}m late)`,
+        );
+        await executeWorkflowDispatch(scheduleData);
+        continue;
+      }
+
+      if (recoveryDecision.reason === "future") {
+        scheduleJob(scheduleData);
+        continue;
+      }
+
+      if (recoveryDecision.reason === "invalid_time") {
+        console.log(
+          `⚠️ Schedule ${scheduleData.id} has invalid push_time, skipping`,
+        );
+        continue;
+      }
+
+      if (recoveryDecision.reason === "too_old") {
+        console.log(`⚠️ Schedule ${scheduleData.id} is in the past, skipping`);
+      }
+    }
 
     return data;
   } catch (error) {
