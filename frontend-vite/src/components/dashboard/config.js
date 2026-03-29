@@ -15,7 +15,7 @@ export const INITIAL_FORM = {
 export const MAX_STREAK_DAYS = 120;
 export const MAX_PUSHES_PER_DAY = 24;
 export const CARDS_PER_PAGE = 4;
-export const MIN_SCHEDULE_LEAD_MINUTES = 35;
+export const MIN_SCHEDULE_LEAD_MINUTES = 20;
 
 export const STREAK_TEMPLATES = [
   {

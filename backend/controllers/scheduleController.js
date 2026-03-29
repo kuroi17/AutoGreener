@@ -13,7 +13,7 @@ const normalizeSchedule = (item) => {
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MIN_SCHEDULE_LEAD_MINUTES = 35;
+const MIN_SCHEDULE_LEAD_MINUTES = 20;
 
 const ensureValidScheduleId = (id, res) => {
   if (!UUID_REGEX.test(String(id || ""))) {
