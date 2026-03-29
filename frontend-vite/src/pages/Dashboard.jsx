@@ -77,7 +77,7 @@ const Dashboard = () => {
 
         const schedulesNeedingStatusProbe = nextSchedules.filter((schedule) => {
           return (
-            typeof schedule.workflow_deployed !== "boolean" &&
+            schedule.workflow_deployed !== true &&
             schedule.repo_owner &&
             schedule.repo_name &&
             workflowStatusById[schedule.id] === undefined
@@ -97,7 +97,9 @@ const Dashboard = () => {
               }),
             );
 
-            const resolvedStatuses = Object.fromEntries(results.filter(Boolean));
+            const resolvedStatuses = Object.fromEntries(
+              results.filter(Boolean),
+            );
             if (Object.keys(resolvedStatuses).length > 0) {
               setWorkflowStatusById((previous) => ({
                 ...previous,
@@ -409,7 +411,8 @@ const Dashboard = () => {
       return { error, pushCount: 0 };
     }
 
-    const { error: dailyTimeError, times: dailyTimes } = getTimesForCurrentForm();
+    const { error: dailyTimeError, times: dailyTimes } =
+      getTimesForCurrentForm();
     if (dailyTimeError) {
       return { error: dailyTimeError, pushCount: 0 };
     }
@@ -578,41 +581,31 @@ const Dashboard = () => {
     }
   };
 
-  const handleWorkflowToggle = async (schedule) => {
+  const handleWorkflowSetup = async (schedule) => {
     try {
       setRowActionId(schedule.id);
-      const isWorkflowDeployed =
-        typeof schedule.workflow_deployed === "boolean"
-          ? schedule.workflow_deployed
-          : Boolean(workflowStatusById[schedule.id]);
-
-      const response = isWorkflowDeployed
-        ? await workflowAPI.remove(schedule.id)
-        : await workflowAPI.deploy(schedule.id);
+      const response = await workflowAPI.deploy(schedule.id);
 
       if (response.success) {
-        const nextWorkflowState = !isWorkflowDeployed;
-        const verb = nextWorkflowState ? "deployed" : "removed";
-
         setWorkflowStatusById((previous) => ({
           ...previous,
-          [schedule.id]: nextWorkflowState,
+          [schedule.id]: true,
         }));
 
         setSchedules((previous) =>
           previous.map((item) =>
             item.id === schedule.id
-              ? { ...item, workflow_deployed: nextWorkflowState }
+              ? { ...item, workflow_deployed: true }
               : item,
           ),
         );
 
-        setBanner("success", `Workflow ${verb} successfully`);
+        setBanner("success", "Workflow setup completed");
         await fetchSchedules({ silent: true });
       }
     } catch (error) {
-      console.error("Error toggling workflow:", error);
-      setBanner("error", "Failed to update workflow file");
+      console.error("Error setting up workflow:", error);
+      setBanner("error", "Failed to setup workflow");
     } finally {
       setRowActionId("");
     }
@@ -708,7 +701,7 @@ const Dashboard = () => {
             rowActionId={rowActionId}
             formatDateTime={formatDateTime}
             getStatusClassName={getStatusClassName}
-            onWorkflowToggle={handleWorkflowToggle}
+            onWorkflowSetup={handleWorkflowSetup}
             onDelete={handleDelete}
             CARDS_PER_PAGE={CARDS_PER_PAGE}
             totalSchedulePages={totalSchedulePages}

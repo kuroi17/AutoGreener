@@ -240,6 +240,48 @@ class WorkflowService {
   }
 
   /**
+   * Trigger a workflow_dispatch run for a deployed schedule workflow.
+   * @param {string} accessToken - User's GitHub access token
+   * @param {Object} schedule - Schedule object from database
+   * @returns {Promise<{success:boolean, workflowId:string, ref:string}>}
+   */
+  static async dispatchWorkflow(accessToken, schedule) {
+    try {
+      const githubService = new GitHubService(accessToken);
+      const owner = schedule.repo_owner;
+      const repo = schedule.repo_name;
+
+      if (!owner || !repo) {
+        throw new Error("Missing repository details for workflow dispatch");
+      }
+
+      const repoInfo = await githubService.getRepository(owner, repo);
+      const executionBranch =
+        schedule.branch ||
+        schedule.source_branch ||
+        schedule.target_branch ||
+        repoInfo.default_branch;
+
+      const workflowId = getWorkflowFileName(schedule.id);
+      await githubService.dispatchWorkflow(
+        owner,
+        repo,
+        workflowId,
+        executionBranch,
+      );
+
+      return {
+        success: true,
+        workflowId,
+        ref: executionBranch,
+      };
+    } catch (error) {
+      console.error("Error dispatching workflow:", error);
+      throw new Error(`Failed to dispatch workflow: ${error.message}`);
+    }
+  }
+
+  /**
    * Infer current schedule execution status from GitHub workflow runs.
    * @param {string} accessToken - User's GitHub access token
    * @param {Object} schedule - Schedule object from database

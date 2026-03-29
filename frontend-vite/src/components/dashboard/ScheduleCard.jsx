@@ -7,7 +7,7 @@ const ScheduleCard = ({
   isWorkflowDeployed,
   formatDateTime,
   getStatusClassName,
-  onWorkflowToggle,
+  onWorkflowSetup,
   onDelete,
 }) => {
   const displayRepo =
@@ -50,18 +50,16 @@ const ScheduleCard = ({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2 xl:flex-nowrap">
-        <button
-          onClick={() => onWorkflowToggle(schedule)}
-          disabled={rowActionId === schedule.id}
-          className={`rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-            isWorkflowDeployed
-              ? "border-amber-200 text-amber-800 hover:bg-amber-50"
-              : "border-emerald-200 text-emerald-800 hover:bg-emerald-50"
-          }`}
-          title="Sets up/removes the GitHub Actions workflow file for this schedule"
-        >
-          {isWorkflowDeployed ? "Workflow ready (remove)" : "Setup workflow"}
-        </button>
+        {!isWorkflowDeployed && (
+          <button
+            onClick={() => onWorkflowSetup(schedule)}
+            disabled={rowActionId === schedule.id}
+            className="rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-800 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+            title="Retries automatic setup when workflow deployment failed"
+          >
+            Retry workflow setup
+          </button>
+        )}
 
         <button
           onClick={() => onDelete(schedule.id)}

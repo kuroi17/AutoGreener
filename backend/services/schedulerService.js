@@ -1,66 +1,84 @@
 const schedule = require("node-schedule");
-const { exec } = require("child_process");
-const { promisify } = require("util");
 const supabase = require("../config/supabase");
-
-const execAsync = promisify(exec);
+const WorkflowService = require("./workflowService");
 
 // Store active jobs in memory
 const activeJobs = new Map();
 
 /**
- * Execute git push for a specific schedule
+ * Normalize schedule shape for downstream workflow calls.
  */
-const executeGitPush = async (scheduleData) => {
-  const { id, repo_path, branch } = scheduleData;
+const normalizeSchedule = (item) => {
+  if (!item) return item;
 
-  console.log(`🚀 Executing scheduled push for schedule ${id}`);
-  console.log(`   Repo: ${repo_path}`);
-  console.log(`   Branch: ${branch}`);
+  return {
+    ...item,
+    branch: item.branch || item.source_branch || item.target_branch || null,
+    push_count: item.push_count || 1,
+  };
+};
+
+/**
+ * Read user token from database when a scheduled dispatch fires.
+ */
+const getUserAccessToken = async (userId) => {
+  const { data, error } = await supabase
+    .from("users")
+    .select("access_token")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data?.access_token) {
+    throw new Error("Missing GitHub access token for user");
+  }
+
+  return data.access_token;
+};
+
+/**
+ * Trigger workflow_dispatch for a specific schedule at the exact target time.
+ */
+const executeWorkflowDispatch = async (scheduleData) => {
+  const { id } = scheduleData;
+
+  console.log(`🚀 Executing scheduled workflow dispatch for schedule ${id}`);
+  console.log(`   Repo: ${scheduleData.repo_owner}/${scheduleData.repo_name}`);
 
   try {
-    // Update status to in-progress
+    const accessToken = await getUserAccessToken(scheduleData.user_id);
+
+    await WorkflowService.dispatchWorkflow(
+      accessToken,
+      normalizeSchedule(scheduleData),
+    );
+
+    // Mark in-progress and clear dispatch errors; final success/error comes from sync-status.
     await supabase
       .from("schedules")
       .update({
         status: "in-progress",
+        error_message: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
 
-    // Change to repo directory and execute git push
-    const command = `cd "${repo_path}" && git push origin ${branch}`;
-
-    const { stdout, stderr } = await execAsync(command, {
-      timeout: 60000, // 60 second timeout
-      windowsHide: true,
-    });
-
-    console.log(`✅ Push successful for schedule ${id}`);
-    if (stdout) console.log("   Output:", stdout);
-    if (stderr) console.log("   Errors:", stderr);
-
-    // Update status to completed
-    await supabase
-      .from("schedules")
-      .update({
-        status: "completed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    console.log(`✅ Workflow dispatch sent for schedule ${id}`);
 
     // Remove from active jobs
     activeJobs.delete(id);
 
-    return { success: true, output: stdout };
+    return { success: true };
   } catch (error) {
-    console.error(`❌ Push failed for schedule ${id}:`, error.message);
+    console.error(
+      `❌ Workflow dispatch failed for schedule ${id}:`,
+      error.message,
+    );
 
-    // Update status to error
+    // Keep schedule as scheduled so cron fallback can still run while surfacing dispatch error.
     await supabase
       .from("schedules")
       .update({
-        status: "error",
+        status: "scheduled",
         error_message: error.message,
         updated_at: new Date().toISOString(),
       })
@@ -69,12 +87,15 @@ const executeGitPush = async (scheduleData) => {
     // Remove from active jobs
     activeJobs.delete(id);
 
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message,
+    };
   }
 };
 
 /**
- * Schedule a job for a specific schedule
+ * Schedule an exact-time workflow dispatch for a specific schedule.
  */
 const scheduleJob = (scheduleData) => {
   const { id, push_time } = scheduleData;
@@ -86,6 +107,14 @@ const scheduleJob = (scheduleData) => {
 
   const pushDate = new Date(push_time);
 
+  // Only schedule GitHub-backed schedules. Local-path legacy rows are ignored.
+  const isGitHubBacked = Boolean(
+    scheduleData.repo_owner && scheduleData.repo_name,
+  );
+  if (!isGitHubBacked) {
+    return null;
+  }
+
   // Check if the push_time is in the future
   if (pushDate <= new Date()) {
     console.log(`⚠️ Schedule ${id} is in the past, skipping`);
@@ -95,7 +124,7 @@ const scheduleJob = (scheduleData) => {
   // Create a new scheduled job
   const job = schedule.scheduleJob(pushDate, async () => {
     console.log(`⏰ Triggered: Schedule ${id} at ${new Date().toISOString()}`);
-    await executeGitPush(scheduleData);
+    await executeWorkflowDispatch(scheduleData);
   });
 
   if (job) {
@@ -116,13 +145,16 @@ const loadSchedules = async () => {
     const { data, error } = await supabase
       .from("schedules")
       .select("*")
-      .eq("status", "scheduled");
+      .in("status", ["scheduled", "active", "in-progress"]);
 
     if (error) throw error;
 
-    console.log(`   Found ${data.length} scheduled jobs`);
+    console.log(`   Found ${data.length} schedules to evaluate`);
 
     data.forEach((scheduleData) => {
+      if (scheduleData.workflow_deployed === false) {
+        return;
+      }
       scheduleJob(scheduleData);
     });
 
@@ -154,7 +186,7 @@ const getActiveJobs = () => {
 };
 
 module.exports = {
-  executeGitPush,
+  executeWorkflowDispatch,
   scheduleJob,
   loadSchedules,
   cancelJob,

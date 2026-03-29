@@ -37,6 +37,10 @@ function generateWorkflowYAML(options) {
 
   const cronExpression = convertToCronExpression(pushTime);
   const workflowName = `PushClock Schedule ${scheduleId}`;
+  const slotKey = new Date(pushTime)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(".000Z", "Z");
   const defaultMessage = `Automated commit by PushClock - ${new Date(pushTime).toLocaleString()}`;
   const message = commitMessage || defaultMessage;
   const safePushCount = Math.min(Math.max(Number(pushCount) || 1, 1), 20);
@@ -95,6 +99,12 @@ jobs:
           mkdir -p autogreener
           author_name="\${{ steps.owner.outputs.name }}"
           author_email="\${{ steps.owner.outputs.email }}"
+          marker_file="autogreener/.pushclock-${scheduleId}-${slotKey}.done"
+          if [ -f "${"$"}marker_file" ]; then
+            echo "Schedule slot already executed (${scheduleId} @ ${slotKey}), skipping duplicate trigger"
+            exit 0
+          fi
+          echo "schedule=${scheduleId} slot=${slotKey} created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${"$"}marker_file"
           commit_errors=0
           for i in $(seq 1 ${safePushCount}); do
             timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -103,7 +113,7 @@ jobs:
             echo "schedule=${scheduleId} repo=${repoName} branch=${branch} run=${"$"}{GITHUB_RUN_ID} attempt=${"$"}i/${safePushCount} at=${"$"}timestamp nonce=${"$"}nonce" >> autogreener/activity.log
             echo "${"$"}timestamp ${"$"}nonce" > autogreener/run-${"$"}{GITHUB_RUN_ID}-${"$"}i.txt
             git add -A autogreener
-            if GIT_AUTHOR_NAME="${"$"}author_name" GIT_AUTHOR_EMAIL="${"$"}author_email" GIT_COMMITTER_NAME="${"$"}author_name" GIT_COMMITTER_EMAIL="${"$"}author_email" GIT_AUTHOR_DATE="${"$"}timestamp" GIT_COMMITTER_DATE="${"$"}timestamp" git commit --allow-empty -m "${escapedMessage} (#${"$"}i/${safePushCount})"; then
+            if GIT_AUTHOR_NAME="${"$"}author_name" GIT_AUTHOR_EMAIL="${"$"}author_email" GIT_COMMITTER_NAME="${"$"}author_name" GIT_COMMITTER_EMAIL="${"$"}author_email" GIT_AUTHOR_DATE="${"$"}timestamp" GIT_COMMITTER_DATE="${"$"}timestamp" git commit --allow-empty -m "${escapedMessage} (#${"$"}i/${safePushCount}) [schedule:${scheduleId}] [slot:${slotKey}]"; then
               echo "Commit ${"$"}i/${safePushCount} created"
             else
               echo "Warning: commit ${"$"}i/${safePushCount} failed" >&2

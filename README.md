@@ -36,12 +36,14 @@ AutoGreener is a lightweight, open-source platform that helps you maintain your 
   Create multiple day-by-day schedules in one click! Enable “Streak Mode” to quickly automate a series of daily pushes and keep your GitHub streak alive with minimal effort.
 
 - **Date Range Streaks**  
- Select a start and end date, and AutoGreener will automatically schedule daily pushes for the entire range (available via the Streak Builder).
+  Select a start and end date, and AutoGreener will automatically schedule daily pushes for the entire range (available via the Streak Builder).
 
 - **GitHub OAuth Integration**: Securely connect your GitHub account
 - **Add Repositories**: Register any accessible GitHub repo for scheduling
   -- **Branch-based scheduling**: Schedule pushes that use a source/execution branch (mapped to `source_branch` in the DB)
 - **Date & Time Scheduling**: Pick exact UTC date and time for automatic pushes
+- **Auto Workflow Setup (Default)**: New schedules now auto-deploy their workflow file
+- **Exact-Time Dispatch Reliability**: Backend schedules a `workflow_dispatch` trigger at the target time to reduce GitHub cron delay jitter
 - **Dashboard View**: Monitor all scheduled pushes and their statuses
 - **Automatic Execution**: Pushes execute automatically at scheduled times using the GitHub API
 - **Edit & Cancel**: Modify or remove scheduled pushes as needed
@@ -142,6 +144,7 @@ Frontend runs at http://localhost:5173
 - GitHub integration fixes: token compatibility, conditional `branch` payloads, and improved error diagnostics
 - Supabase improvements: prefers service-role key for writes and surfaces DB errors clearly to the frontend
 - Frontend dashboard with live status, error/success details and workflow controls
+- Frontend workflow UX is now automatic-first: setup button appears only when auto-setup fails (retry path)
 - Streak Builder, pushes-per-day (interval + custom times), and date-range scheduling UI improvements
 - Edit, cancel, and reschedule schedules
 - Modern, responsive frontend (React + Vite + Tailwind)
@@ -153,6 +156,7 @@ Frontend runs at http://localhost:5173
 - Deployment: After redeploy, re-login to refresh token scopes before using "Deploy workflow".
 - DB compatibility: backend maps `branch` → `source_branch` for compatibility with the existing `schedules` schema; optionally add a `branch` column via Supabase SQL if you want parity.
 - Workflow creation: service validates repo access, chooses an effective branch (prefers schedule branch, falls back to repo default), and creates/updates the workflow file. Errors are logged with GitHub response bodies for easier debugging.
+- Scheduling reliability: in addition to cron trigger, backend now sends an exact-time `workflow_dispatch` trigger to reduce cases where a 20-minute schedule executes much later due to GitHub Actions cron queue delays.
 
 ## 🎨 UI Preview & Features
 
@@ -160,7 +164,7 @@ Frontend runs at http://localhost:5173
 - **Responsive Layout** - Desktop and mobile friendly
 - **Interactive Repo Cards** - Expand for push details, errors, and logs
 - **Real-time Notifications** - Success, error, warning, info
-- **Visual Dashboard** - Scheduled, completed, failed pushes 
+- **Visual Dashboard** - Scheduled, completed, failed pushes
 
 ## 🔧 Development Workflow
 
@@ -215,6 +219,5 @@ This project is open source and available under the MIT License.
 ## 👨‍💻 Author
 
 Built with ❤️ by **kuroi17** and GenAI Buddies
-
 
 **Happy Scheduling & Merging! 🚀**

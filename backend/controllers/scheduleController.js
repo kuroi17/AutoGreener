@@ -1,5 +1,6 @@
 const supabase = require("../config/supabase");
 const WorkflowService = require("../services/workflowService");
+const { scheduleJob, cancelJob } = require("../services/schedulerService");
 
 const normalizeSchedule = (item) => {
   if (!item) return item;
@@ -281,6 +282,10 @@ const createSchedule = async (req, res) => {
         workflowDeployed = true;
         data.workflow_deployed = true;
         data.status = "scheduled";
+
+        // Register exact-time workflow_dispatch so near-term schedules are not
+        // delayed by GitHub cron queue jitter.
+        scheduleJob(data);
       } catch (workflowError) {
         console.error("Error deploying workflow:", workflowError);
         // Schedule created but workflow failed - don't fail the entire request
@@ -423,6 +428,12 @@ const updateSchedule = async (req, res) => {
       }
     }
 
+    if (data.status === "paused") {
+      cancelJob(id);
+    } else if (data.workflow_deployed) {
+      scheduleJob(normalizeSchedule(data));
+    }
+
     res.json({
       success: true,
       message: "Schedule updated successfully",
@@ -491,6 +502,12 @@ const toggleScheduleStatus = async (req, res) => {
 
     if (error) throw error;
 
+    if (newStatus === "paused") {
+      cancelJob(id);
+    } else if (data.workflow_deployed) {
+      scheduleJob(normalizeSchedule(data));
+    }
+
     res.json({
       success: true,
       message: `Schedule ${newStatus === "active" ? "activated" : "paused"} successfully`,
@@ -523,6 +540,44 @@ const deleteSchedule = async (req, res) => {
   }
 
   try {
+    const { data: schedule, error: fetchError } = await supabase
+      .from("schedules")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: "Schedule not found",
+      });
+    }
+
+    // Best-effort auto-cleanup: remove deployed workflow file before deleting schedule.
+    if (
+      schedule.workflow_deployed &&
+      schedule.repo_owner &&
+      schedule.repo_name &&
+      req.user?.access_token
+    ) {
+      try {
+        await WorkflowService.removeWorkflow(
+          req.user.access_token,
+          normalizeSchedule(schedule),
+        );
+      } catch (cleanupError) {
+        console.warn(
+          `Unable to remove workflow for schedule ${id} before delete:`,
+          cleanupError.message,
+        );
+      }
+    }
+
+    cancelJob(id);
+
     const { error } = await supabase
       .from("schedules")
       .delete()

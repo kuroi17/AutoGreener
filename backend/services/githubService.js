@@ -377,6 +377,35 @@ class GitHubService {
       throw new Error("Failed to fetch workflow runs");
     }
   }
+
+  /**
+   * Trigger a workflow_dispatch run for a workflow file/id.
+   * @param {string} owner - Repository owner username
+   * @param {string} repo - Repository name
+   * @param {string} workflowId - Workflow file name or workflow ID
+   * @param {string} ref - Git reference to run on (branch/tag)
+   * @param {Object} inputs - Optional workflow inputs
+   * @returns {Promise<{success:boolean}>}
+   */
+  async dispatchWorkflow(owner, repo, workflowId, ref, inputs = {}) {
+    try {
+      await this.client.post(
+        `/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`,
+        {
+          ref,
+          inputs,
+        },
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error(
+        "Error dispatching workflow:",
+        error.response?.data || error.message,
+      );
+      throw new Error("Failed to dispatch workflow run");
+    }
+  }
 }
 
 module.exports = GitHubService;

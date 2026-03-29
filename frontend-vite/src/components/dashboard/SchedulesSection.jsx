@@ -18,7 +18,7 @@ export default function SchedulesSection({
   rowActionId,
   formatDateTime,
   getStatusClassName,
-  onWorkflowToggle,
+  onWorkflowSetup,
   onDelete,
   CARDS_PER_PAGE,
   totalSchedulePages,
@@ -69,9 +69,8 @@ export default function SchedulesSection({
           <div className="space-y-3">
             {visibleSchedules.map((schedule) => {
               const isWorkflowDeployed =
-                typeof schedule.workflow_deployed === "boolean"
-                  ? schedule.workflow_deployed
-                  : Boolean(workflowStatusById[schedule.id]);
+                schedule.workflow_deployed === true ||
+                Boolean(workflowStatusById[schedule.id]);
 
               return (
                 <ScheduleCard
@@ -81,7 +80,7 @@ export default function SchedulesSection({
                   isWorkflowDeployed={isWorkflowDeployed}
                   formatDateTime={formatDateTime}
                   getStatusClassName={getStatusClassName}
-                  onWorkflowToggle={onWorkflowToggle}
+                  onWorkflowSetup={onWorkflowSetup}
                   onDelete={onDelete}
                 />
               );

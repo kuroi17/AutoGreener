@@ -3,6 +3,7 @@ const router = express.Router();
 const WorkflowService = require("../services/workflowService");
 const { isAuthenticated } = require("../middleware/auth");
 const supabase = require("../config/supabase");
+const { scheduleJob, cancelJob } = require("../services/schedulerService");
 
 /**
  * POST /api/workflow/deploy/:scheduleId
@@ -85,6 +86,8 @@ router.post("/deploy/:scheduleId", isAuthenticated, async (req, res) => {
         updateResult.error.message,
       );
     }
+
+    scheduleJob(schedule);
 
     res.json({
       success: true,
@@ -173,6 +176,8 @@ router.delete("/remove/:scheduleId", isAuthenticated, async (req, res) => {
       );
     }
 
+    cancelJob(scheduleId);
+
     res.json({
       success: true,
       message: `Workflow ${result.action} successfully`,
@@ -227,6 +232,44 @@ router.get("/status/:scheduleId", isAuthenticated, async (req, res) => {
 
     // Check workflow existence
     const exists = await WorkflowService.workflowExists(accessToken, schedule);
+
+    // Best effort: persist observed state and align runtime scheduler.
+    const baseUpdate = {
+      updated_at: new Date().toISOString(),
+    };
+
+    let updateResult = await supabase
+      .from("schedules")
+      .update({
+        ...baseUpdate,
+        workflow_deployed: exists,
+      })
+      .eq("id", scheduleId)
+      .eq("user_id", userId);
+
+    if (
+      updateResult.error &&
+      /workflow_deployed/i.test(updateResult.error.message || "")
+    ) {
+      updateResult = await supabase
+        .from("schedules")
+        .update(baseUpdate)
+        .eq("id", scheduleId)
+        .eq("user_id", userId);
+    }
+
+    if (updateResult.error) {
+      console.warn(
+        "Unable to persist workflow status check result:",
+        updateResult.error.message,
+      );
+    }
+
+    if (exists) {
+      scheduleJob(schedule);
+    } else {
+      cancelJob(scheduleId);
+    }
 
     res.json({
       success: true,
